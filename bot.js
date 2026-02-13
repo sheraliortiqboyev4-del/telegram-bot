@@ -190,10 +190,10 @@ bot.onText(/\/start/, async (msg) => {
              const mainMenu = {
                  reply_markup: {
                      keyboard: [
-                         ["💎 Avto Almaz", "👥 AvtoYuser"],
-                         ["👨‍💼 Avto Admin Id", "📣 Avto Reklama"],
+                         ["💎 Avto Almaz", "� AvtoUser"],
+                         ["� Admin ID", "📣 Avto Reklama"],
                          ["📊 Profil", "🔄 Nomer almashtirish"],
-                         ["ℹ️ Yordam"]
+                         ["🧾 Yordam"]
                      ],
                      resize_keyboard: true
                  }
@@ -365,7 +365,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "� AvtoUser") {
+    if (text === "👤 AvtoUser") {
         const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
@@ -376,7 +376,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "� Admin ID") {
+    if (text === "👮 Admin ID") {
         const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
