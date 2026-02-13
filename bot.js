@@ -686,62 +686,150 @@ bot.on('message', async (msg) => {
 // --- YORDAMCHI FUNKSIYALAR ---
 async function scrapeUsers(chatId, client, link, limit) {
     try {
-        const entity = await client.getEntity(link);
+        let entity;
         
-        // 1. Get Admins
-        const adminsArr = await client.getParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
-        const adminIds = new Set(adminsArr.map(a => a.id.toString()));
+        // Linkni tozalash
+        link = link.trim();
         
-        let adminsList = [];
-        let membersList = [];
+        // 1. Entity ni aniqlash va guruhga qo'shilish
+        try {
+            if (link.includes('/+') || link.includes('joinchat')) {
+                // Yopiq guruh (Invite link)
+                const hash = link.split(/\/(\+|joinchat)\//)[1];
+                if (hash) {
+                    try {
+                        const result = await client.invoke(new Api.messages.ImportChatInvite({ hash: hash }));
+                        if (result.updates && result.updates.chats && result.updates.chats.length > 0) {
+                             entity = result.updates.chats[0];
+                        } else if (result.chats && result.chats.length > 0) {
+                             entity = result.chats[0];
+                        }
+                    } catch (e) {
+                        if (e.message.includes('USER_ALREADY_PARTICIPANT')) {
+                            // Agar allaqachon a'zo bo'lsa, oddiy getEntity bilan olib ko'ramiz
+                            // (Invite linkdan hashni olib CheckChatInvite qilish mumkin, lekin getEntity qiyin)
+                            // Shuning uchun userdan username so'rash yaxshiroq, lekin harakat qilamiz
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+            }
+            
+            if (!entity) {
+                entity = await client.getEntity(link);
+            }
 
-        // Add found admins to list immediately
-        for (const admin of adminsArr) {
-             const username = admin.username ? `@${admin.username}` : `ID: ${admin.id}`;
-             adminsList.push(username);
+            // Guruhga qo'shilishga harakat qilish (agar public bo'lsa)
+            try {
+                await client.invoke(new Api.channels.JoinChannel({ channel: entity }));
+            } catch (e) {
+                // Agar allaqachon a'zo bo'lsa yoki xatolik bo'lsa (jim yutamiz)
+            }
+
+        } catch (e) {
+            console.error("Entity resolve error:", e);
+            bot.sendMessage(chatId, "❌ Guruh topilmadi yoki unga kirish imkoni yo'q. Iltimos, link to'g'riligini tekshiring yoki bot (akkaunt) guruhga a'zo ekanligiga ishonch hosil qiling.");
+            return;
+        }
+        
+        // 2. Get Admins
+        let adminsList = [];
+        const adminIds = new Set();
+        
+        try {
+            const adminsArr = await client.getParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
+            
+            for (const admin of adminsArr) {
+                 const username = admin.username ? `@${admin.username}` : `ID: ${admin.id}`;
+                 adminsList.push(username);
+                 adminIds.add(admin.id.toString());
+            }
+        } catch (e) {
+            console.error("Admin scrape warning:", e);
+            // Adminlarni ololmasak ham davom etamiz
         }
 
-        // 2. Get Members (Iterate)
+        // 3. Get Members (Iterate)
+        let membersList = [];
         let count = 0;
-        for await (const user of client.iterParticipants(entity, { limit: limit + adminsArr.length })) { 
-             if (count >= limit) break;
-             if (user.bot || user.deleted) continue;
+        
+        // Status xabarini yangilash
+        const statusMsg = await bot.sendMessage(chatId, "🔄 Foydalanuvchilar yig'ilmoqda... Iltimos kuting.");
+        
+        try {
+            for await (const user of client.iterParticipants(entity, { limit: limit + adminsList.length + 50 })) { 
+                 if (count >= limit) break;
+                 if (user.bot || user.deleted) continue;
 
-             const username = user.username ? `@${user.username}` : `ID: ${user.id}`;
-             
-             // Check if this user is an admin
-             if (adminIds.has(user.id.toString())) {
-                 // Already in adminsList
-             } else {
-                 membersList.push(username);
-                 count++;
-             }
+                 const username = user.username ? `@${user.username}` : `ID: ${user.id}`;
+                 
+                 // Check if this user is an admin
+                 if (adminIds.has(user.id.toString())) {
+                     // Already in adminsList
+                 } else {
+                     membersList.push(username);
+                     count++;
+                 }
+            }
+        } catch (e) {
+             console.error("Iterate error:", e);
+             // Borini yozamiz
+        }
+
+        if (membersList.length === 0 && adminsList.length === 0) {
+            bot.sendMessage(chatId, "❌ Foydalanuvchilarni olib bo'lmadi. Guruh sozlamalarini tekshiring (userlarni ko'rish yopiq bo'lishi mumkin).");
+            return;
         }
 
         const fileContent = `ADMINLAR (${adminsList.length}):\n${adminsList.join('\n')}\n\nAZOLAR (${membersList.length}):\n${membersList.join('\n')}`;
-        const filePath = `./users_${chatId}.txt`;
+        const filePath = `./users_${chatId}.txt`; // Renderda rootga yozish mumkin, vaqtinchalik
         fs.writeFileSync(filePath, fileContent);
         
         await bot.sendDocument(chatId, filePath, { 
-            caption: "✅ **Foydalanuvchilar yig'ildi!**\n\nAdminlar va a'zolar alohida faylda." 
+            caption: `✅ **Jarayon yakunlandi!**\n\n👮 Adminlar: ${adminsList.length}\n👤 A'zolar: ${membersList.length}\n📂 Jami: ${adminsList.length + membersList.length}` 
         });
-        fs.unlinkSync(filePath);
         
+        // Faylni o'chirish
+        try {
+            fs.unlinkSync(filePath);
+        } catch (e) {}
+        
+        // Status xabarni o'chirish
+        bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
+
     } catch (e) {
         console.error("Scrape error:", e);
-        bot.sendMessage(chatId, `❌ Xatolik: ${e.message}`);
+        bot.sendMessage(chatId, `❌ Xatolik yuz berdi: ${e.message}`);
     }
 }
 
 async function scrapeAdmins(chatId, client, link) {
     try {
-        const entity = await client.getEntity(link);
+        link = link.trim();
+        let entity;
+        
+        try {
+             entity = await client.getEntity(link);
+             // Join qilishga harakat
+             try { await client.invoke(new Api.channels.JoinChannel({ channel: entity })); } catch (e) {}
+        } catch (e) {
+             bot.sendMessage(chatId, "❌ Guruh topilmadi. Linkni tekshiring.");
+             return;
+        }
+
         const adminsArr = await client.getParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
         
-        let message = `👮 **Guruh Adminlari:**\n\n`;
+        if (!adminsArr || adminsArr.length === 0) {
+            bot.sendMessage(chatId, "⚠️ Adminlar topilmadi yoki ro'yxatni olish imkoni yo'q.");
+            return;
+        }
+
+        let message = `👮 **Guruh Adminlari (${adminsArr.length}):**\n\n`;
         for (const admin of adminsArr) {
             const username = admin.username ? `@${admin.username}` : "Username yo'q";
-            message += `👤 ${admin.firstName || 'Admin'}\n   ├ Username: ${username}\n   └ ID: \`${admin.id}\`\n\n`;
+            const name = (admin.firstName || '') + ' ' + (admin.lastName || '');
+            message += `👤 ${name.trim() || 'Admin'}\n   ├ Username: ${username}\n   └ ID: \`${admin.id}\`\n\n`;
         }
         
         if (message.length > 4000) {
