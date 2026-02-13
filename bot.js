@@ -514,14 +514,14 @@ bot.on('message', async (msg) => {
         if (state.step === 'WAITING_AVTOUSER_LINK') {
             state.targetLink = text;
             state.step = 'WAITING_AVTOUSER_LIMIT';
-            bot.sendMessage(chatId, "🔢 Nechta foydalanuvchi kerak? (Maksimal 1000)", { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "🔢 Nechta foydalanuvchi kerak? (Maksimal 100)", { parse_mode: "Markdown" });
             return;
         }
 
         if (state.step === 'WAITING_AVTOUSER_LIMIT') {
             let limit = parseInt(text);
             if (isNaN(limit) || limit <= 0) limit = 100; 
-            if (limit > 1000) limit = 1000;
+            if (limit > 100) limit = 100;
 
             bot.sendMessage(chatId, `✅ Tushunarli. **${state.targetLink}** guruhidan **${limit}** ta user yig'ilmoqda...`, { parse_mode: "Markdown" });
             
