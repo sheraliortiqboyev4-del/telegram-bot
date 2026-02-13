@@ -1,10 +1,18 @@
 require('dotenv').config();
+const dns = require('dns');
+// Google DNS serverlarini o'rnatish (SRV record xatoliklarini oldini olish uchun)
+try {
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
+} catch (e) {
+    console.log("DNS serverlarini o'zgartirib bo'lmadi, standart sozlamalar ishlatiladi.");
+}
+
 const TelegramBot = require('node-telegram-bot-api');
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 const { Api } = require("telegram/tl");
-const fs = require('fs');
+const mongoose = require('mongoose');
 const express = require('express');
 
 // --- SERVER UCHUN SOZLAMALAR (Render/Replit) ---
@@ -30,6 +38,32 @@ const apiHash = process.env.API_HASH || "b18441a1ff607e10a989891a5462e627";
 // Admin ID
 const ADMIN_ID = process.env.ADMIN_ID ? parseInt(process.env.ADMIN_ID) : null;
 
+// MongoDB Ulanish
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+    console.error("❌ XATOLIK: .env faylda MONGO_URI yo'q! Iltimos, MongoDB URL manzilini kiriting.");
+} else {
+    mongoose.connect(MONGO_URI, {
+        serverSelectionTimeoutMS: 5000,
+        family: 4 // IPv4 ni majburlash
+    })
+        .then(() => console.log('✅ MongoDB ga ulandi!'))
+        .catch(err => console.error('❌ MongoDB ulanish xatosi:', err));
+}
+
+// User Schema
+const userSchema = new mongoose.Schema({
+    chatId: { type: Number, required: true, unique: true },
+    name: String,
+    status: { type: String, default: 'pending' }, // pending, approved, blocked
+    clicks: { type: Number, default: 0 },
+    session: { type: String, default: null },
+    joinedAt: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', userSchema);
+
 // Botni yaratish
 const bot = new TelegramBot(token, { polling: true });
 
@@ -40,58 +74,46 @@ const loginPromises = {};
 // Userbot clients
 const userClients = {};
 
-// DB fayli
-const DB_FILE = 'users.json';
-
-// DB funksiyalari
-function getUsers() {
+// DB funksiyalari (MongoDB)
+async function getUser(chatId) {
     try {
-        if (!fs.existsSync(DB_FILE)) {
-            fs.writeFileSync(DB_FILE, '[]');
-            return [];
-        }
-        const data = fs.readFileSync(DB_FILE, 'utf8');
-        return JSON.parse(data);
+        return await User.findOne({ chatId });
+    } catch (e) {
+        console.error("DB o'qishda xatolik:", e);
+        return null;
+    }
+}
+
+async function getUsers() {
+    try {
+        return await User.find({});
     } catch (e) {
         console.error("DB o'qishda xatolik:", e);
         return [];
     }
 }
 
-function saveUsers(users) {
+async function updateUser(chatId, data) {
     try {
-        fs.writeFileSync(DB_FILE, JSON.stringify(users, null, 2));
+        return await User.findOneAndUpdate(
+            { chatId },
+            { $set: data },
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        );
     } catch (e) {
         console.error("DB yozishda xatolik:", e);
+        return null;
     }
 }
 
-function getUser(chatId) {
-    const users = getUsers();
-    return users.find(u => u.chatId === chatId);
-}
-
-function updateUser(chatId, data) {
-    let users = getUsers();
-    const index = users.findIndex(u => u.chatId === chatId);
-    if (index !== -1) {
-        users[index] = { ...users[index], ...data };
-        saveUsers(users);
-        return users[index];
-    } else {
-        const newUser = { chatId, status: 'pending', clicks: 0, joinedAt: new Date().toISOString(), ...data };
-        users.push(newUser);
-        saveUsers(users);
-        return newUser;
-    }
-}
-
-function updateStats(chatId) {
-    let users = getUsers();
-    const index = users.findIndex(u => u.chatId === chatId);
-    if (index !== -1) {
-        users[index].clicks = (users[index].clicks || 0) + 1;
-        saveUsers(users);
+async function updateStats(chatId) {
+    try {
+        await User.findOneAndUpdate(
+            { chatId },
+            { $inc: { clicks: 1 } }
+        );
+    } catch (e) {
+        console.error("Stats yangilashda xatolik:", e);
     }
 }
 
@@ -110,28 +132,28 @@ if (!ADMIN_ID) {
 }
 
 // /start komandasi
-bot.onText(/\/start/, (msg) => {
+bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
     const name = msg.from.first_name;
     
     console.log(`User started: ${name} (${chatId})`);
 
-    let user = getUser(chatId);
+    let user = await getUser(chatId);
     
     // Agar foydalanuvchi Admin bo'lsa, uni avtomatik 'approved' qilamiz
     if (chatId === ADMIN_ID) {
         if (!user) {
-            user = updateUser(chatId, { name, status: 'approved' });
+            user = await updateUser(chatId, { name, status: 'approved' });
             bot.sendMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.");
         } else if (user.status !== 'approved') {
-            user = updateUser(chatId, { status: 'approved' });
+            user = await updateUser(chatId, { status: 'approved' });
             bot.sendMessage(chatId, "👋 Salom Admin! Maqomingiz tiklandi.");
         }
     }
 
     if (!user) {
         // Yangi oddiy foydalanuvchi
-        user = updateUser(chatId, { name, status: 'pending' });
+        user = await updateUser(chatId, { name, status: 'pending' });
         
         bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali tulov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, {
             parse_mode: "Markdown"
@@ -203,15 +225,15 @@ bot.onText(/\/start/, (msg) => {
 });
 
 // Admin komandalari
-bot.onText(/\/approve (\d+)/, (msg, match) => {
+bot.onText(/\/approve (\d+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (chatId !== ADMIN_ID) return;
 
     const targetId = parseInt(match[1]);
-    const user = getUser(targetId);
+    const user = await getUser(targetId);
 
     if (user) {
-        updateUser(targetId, { status: 'approved' });
+        await updateUser(targetId, { status: 'approved' });
         bot.sendMessage(chatId, `✅ Foydalanuvchi ${targetId} tasdiqlandi.`);
         bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz!\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.", { parse_mode: "Markdown" });
     } else {
@@ -219,15 +241,15 @@ bot.onText(/\/approve (\d+)/, (msg, match) => {
     }
 });
 
-bot.onText(/\/block (\d+)/, (msg, match) => {
+bot.onText(/\/block (\d+)/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (chatId !== ADMIN_ID) return;
 
     const targetId = parseInt(match[1]);
-    const user = getUser(targetId);
+    const user = await getUser(targetId);
 
     if (user) {
-        updateUser(targetId, { status: 'blocked', session: null }); // Sessiyani o'chiramiz
+        await updateUser(targetId, { status: 'blocked', session: null }); // Sessiyani o'chiramiz
         
         // Userbotni to'xtatish
         if (userClients[targetId]) {
@@ -242,11 +264,11 @@ bot.onText(/\/block (\d+)/, (msg, match) => {
     }
 });
 
-bot.onText(/\/stats/, (msg) => {
+bot.onText(/\/stats/, async (msg) => {
     const chatId = msg.chat.id;
     if (chatId !== ADMIN_ID) return;
 
-    const users = getUsers();
+    const users = await getUsers();
     let message = "📊 **Statistika:**\n\n";
     let totalClicks = 0;
 
@@ -264,9 +286,9 @@ bot.onText(/\/stats/, (msg) => {
     bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
 });
 
-bot.onText(/\/profile/, (msg) => {
+bot.onText(/\/profile/, async (msg) => {
     const chatId = msg.chat.id;
-    const user = getUser(chatId);
+    const user = await getUser(chatId);
 
     if (!user) {
         bot.sendMessage(chatId, "❌ Siz ro'yxatdan o'tmagansiz. /start ni bosing.");
@@ -286,9 +308,9 @@ bot.onText(/\/profile/, (msg) => {
 });
 
 // /menu komandasi - Asosiy menyuni chiqarish
-bot.onText(/\/menu/, (msg) => {
+bot.onText(/\/menu/, async (msg) => {
     const chatId = msg.chat.id;
-    const user = getUser(chatId);
+    const user = await getUser(chatId);
 
     if (user && user.session && user.status === 'approved') {
         const mainMenu = {
@@ -309,9 +331,9 @@ bot.onText(/\/menu/, (msg) => {
 });
 
 // /rek komandasi o'rniga "Avto Reklama" tugmasi ishlatiladi, lekin komanda ham qoladi
-bot.onText(/\/rek/, (msg) => {
+bot.onText(/\/rek/, async (msg) => {
     const chatId = msg.chat.id;
-    const user = getUser(chatId);
+    const user = await getUser(chatId);
 
     if (!user || user.status !== 'approved' || !userClients[chatId]) {
         bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
@@ -332,7 +354,7 @@ bot.on('message', async (msg) => {
 
     // --- MENYU TUGMALARI LOGIKASI ---
     if (text === "💎 Avto Almaz") {
-        const user = getUser(chatId);
+        const user = await getUser(chatId);
         if (user && user.session) {
              const clicks = user.clicks || 0;
              bot.sendMessage(chatId, `💎 **Avto Almaz**\n\n✅ **Holat:** Faol\n💎 **Jami to'plangan:** ${clicks} ta\n\nBot avtomatik ravishda guruhlardagi 💎 tugmalarini bosib almaz yig'moqda.`, { parse_mode: "Markdown" });
@@ -361,7 +383,7 @@ bot.on('message', async (msg) => {
         // Lekin eng osoni - mavjud /rek listenerini ishlatish emas, balki logikani shu yerda chaqirish.
         // Yoki shunchaki userStates ga yozib yuborish.
         
-        const user = getUser(chatId);
+        const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
             return;
@@ -373,7 +395,7 @@ bot.on('message', async (msg) => {
     }
 
     if (text === "📊 Profil") {
-        const user = getUser(chatId);
+        const user = await getUser(chatId);
         if (!user) {
             bot.sendMessage(chatId, "❌ Siz ro'yxatdan o'tmagansiz. /start ni bosing.");
             return;
@@ -390,10 +412,10 @@ bot.on('message', async (msg) => {
     }
 
     if (text === "🔄 Nomer almashtirish") {
-        const user = getUser(chatId);
+        const user = await getUser(chatId);
         if (user) {
             // Sessiyani o'chirish
-            updateUser(chatId, { session: null });
+            await updateUser(chatId, { session: null });
             
             // Clientni to'xtatish
             if (userClients[chatId]) {
@@ -429,7 +451,7 @@ bot.on('message', async (msg) => {
     if (!state) return;
 
     // Faqat tasdiqlangan userlar login qila oladi
-    const user = getUser(chatId);
+    const user = await getUser(chatId);
     if (!user || user.status !== 'approved') return;
 
     try {
@@ -546,12 +568,12 @@ bot.on('message', async (msg) => {
                           bot.sendMessage(chatId, `❌ Xatolik yuz berdi: ${err.message}. /start bosib qayta urinib ko'ring.`);
                      }
                  },
-            }).then(() => {
+            }).then(async () => {
                 console.log(`[${chatId}] Client connected successfully!`);
                 const session = client.session.save();
                 
                 // Bazaga sessiyani saqlash
-                updateUser(chatId, { session: session });
+                await updateUser(chatId, { session: session });
                 
                 bot.sendMessage(chatId, "🎉 **Muvaffaqiyatli kirdingiz!** Userbot ishga tushdi.", { parse_mode: "Markdown" });
                 
@@ -662,8 +684,8 @@ async function startUserbot(client, chatId) {
                     console.log(`[${chatId}] ✅ Tugma bosildi!`);
                     
                     // Statistikani yangilash
-                    updateStats(chatId);
-                    const user = getUser(chatId);
+                    await updateStats(chatId);
+                    const user = await getUser(chatId);
                     const totalClicks = user ? user.clicks : 1;
 
                     // Guruh nomini olish
@@ -701,13 +723,13 @@ async function restoreUserSession(chatId, sessionString) {
     } catch (e) {
         console.error(`Sessiyani tiklashda xatolik (${chatId}):`, e);
         bot.sendMessage(chatId, "⚠️ Sessiyangiz eskirgan bo'lishi mumkin. Iltimos, /start bosib qaytadan kiring.");
-        updateUser(chatId, { session: null }); // Sessiyani o'chirish
+        await updateUser(chatId, { session: null }); // Sessiyani o'chirish
     }
 }
 
 // Bot ishga tushganda barcha saqlangan sessiyalarni yuklash
 (async () => {
-    const users = getUsers();
+    const users = await getUsers();
     for (const user of users) {
         if (user.status === 'approved' && user.session) {
             await restoreUserSession(user.chatId, user.session);
