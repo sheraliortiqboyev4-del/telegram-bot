@@ -8,6 +8,7 @@ try {
 }
 
 const TelegramBot = require('node-telegram-bot-api');
+const fs = require('fs');
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
@@ -316,10 +317,10 @@ bot.onText(/\/menu/, async (msg) => {
         const mainMenu = {
             reply_markup: {
                 keyboard: [
-                    ["💎 Avto Almaz", "👥 AvtoYuser"],
-                    ["👨‍💼 Avto Admin Id", "📣 Avto Reklama"],
+                    ["💎 Avto Almaz", "👤 AvtoUser"],
+                    ["👮 Admin ID", "📣 Avto Reklama"],
                     ["📊 Profil", "🔄 Nomer almashtirish"],
-                    ["ℹ️ Yordam"]
+                    ["🧾 Yordam"]
                 ],
                 resize_keyboard: true
             }
@@ -364,17 +365,25 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "👥 AvtoYuser") {
-        bot.sendMessage(chatId, "🛠 **AvtoYuser**\n\nBu funksiya tez kunda ishga tushadi! 🚀\nU orqali siz guruhlardan foydalanuvchilarni yig'ib olishingiz mumkin bo'ladi.");
+    if (text === "� AvtoUser") {
+        const user = await getUser(chatId);
+        if (!user || user.status !== 'approved' || !userClients[chatId]) {
+            bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
+            return;
+        }
+        userStates[chatId] = { step: 'WAITING_AVTOUSER_LINK' };
+        bot.sendMessage(chatId, "👤 **AvtoUser**\n\nIltimos, foydalanuvchilar yig'iladigan guruh linkini yuboring:\n(Masalan: https://t.me/guruh_linki yoki @guruh)", { parse_mode: "Markdown", reply_markup: { remove_keyboard: true } });
         return;
     }
 
-    if (text === "👨‍💼 Avto Admin Id") {
-        if (ADMIN_ID) {
-            bot.sendMessage(chatId, `👨‍💼 **Admin ID:** \`${ADMIN_ID}\`\n\nSavollar va takliflar uchun admin bilan bog'laning.`, { parse_mode: "Markdown" });
-        } else {
-            bot.sendMessage(chatId, "⚠️ Admin ID sozlanmagan.");
+    if (text === "� Admin ID") {
+        const user = await getUser(chatId);
+        if (!user || user.status !== 'approved' || !userClients[chatId]) {
+            bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
+            return;
         }
+        userStates[chatId] = { step: 'WAITING_ADMINID_LINK' };
+        bot.sendMessage(chatId, "👮 **Admin ID**\n\nIltimos, adminlar aniqlanadigan guruh linkini yuboring:", { parse_mode: "Markdown", reply_markup: { remove_keyboard: true } });
         return;
     }
 
@@ -440,8 +449,9 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "ℹ️ Yordam") {
-        bot.sendMessage(chatId, "ℹ️ **Yordam**\n\nBu bot orqali siz Telegram guruhlarida avtomatik ravishda almaz yig'ishingiz va reklama tarqatishingiz mumkin.\n\nMuammolar bo'lsa admin bilan bog'laning.");
+    if (text === "🧾 Yordam") {
+        const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi. Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yuserlarini yig'adi va sizga yuboradi maksimal 1000 ta (yuser yig'ish jarayoni voqt olishi mumkin iltimos sabirli bo'ling). 🔗 Guruh linki va limitni kiriting.\n\n📢 **Avto Reklama**\nSiz botga yuborgan 100 ta yuserga reklama yuboradi.(unutmang 200 ta yuser yuborsangiz ham faqat ularni 100 tasini oladi ) Userlar va reklama matnini kiriting.\n\n📊 **Profil**\nSizning statistikangizni ko'rsatadi.\n\n🔄 **Nomer almashtirish**\nTelefon raqamingizni o'zgartirish.";
+        bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
         return;
     }
 
@@ -497,6 +507,38 @@ bot.on('message', async (msg) => {
                 delete userStates[chatId];
                 bot.sendMessage(chatId, "❌ Reklama bekor qilindi.", { reply_markup: { remove_keyboard: true } });
             }
+            return;
+        }
+
+        // --- AVTOUSER LOGIKASI ---
+        if (state.step === 'WAITING_AVTOUSER_LINK') {
+            state.targetLink = text;
+            state.step = 'WAITING_AVTOUSER_LIMIT';
+            bot.sendMessage(chatId, "🔢 Nechta foydalanuvchi kerak? (Maksimal 1000)", { parse_mode: "Markdown" });
+            return;
+        }
+
+        if (state.step === 'WAITING_AVTOUSER_LIMIT') {
+            let limit = parseInt(text);
+            if (isNaN(limit) || limit <= 0) limit = 100; 
+            if (limit > 1000) limit = 1000;
+
+            bot.sendMessage(chatId, `✅ Tushunarli. **${state.targetLink}** guruhidan **${limit}** ta user yig'ilmoqda...`, { parse_mode: "Markdown" });
+            
+            // Start process
+            scrapeUsers(chatId, userClients[chatId], state.targetLink, limit);
+            
+            delete userStates[chatId]; 
+            return;
+        }
+
+        // --- ADMIN ID LOGIKASI ---
+        if (state.step === 'WAITING_ADMINID_LINK') {
+            bot.sendMessage(chatId, `✅ Tushunarli. **${text}** guruhidan adminlar aniqlanmoqda...`, { parse_mode: "Markdown" });
+            
+            scrapeAdmins(chatId, userClients[chatId], text);
+            
+            delete userStates[chatId];
             return;
         }
 
@@ -642,6 +684,81 @@ bot.on('message', async (msg) => {
 
 // Userbot logikasi
 // --- YORDAMCHI FUNKSIYALAR ---
+async function scrapeUsers(chatId, client, link, limit) {
+    try {
+        const entity = await client.getEntity(link);
+        
+        // 1. Get Admins
+        const adminsArr = await client.getParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
+        const adminIds = new Set(adminsArr.map(a => a.id.toString()));
+        
+        let adminsList = [];
+        let membersList = [];
+
+        // Add found admins to list immediately
+        for (const admin of adminsArr) {
+             const username = admin.username ? `@${admin.username}` : `ID: ${admin.id}`;
+             adminsList.push(username);
+        }
+
+        // 2. Get Members (Iterate)
+        let count = 0;
+        for await (const user of client.iterParticipants(entity, { limit: limit + adminsArr.length })) { 
+             if (count >= limit) break;
+             if (user.bot || user.deleted) continue;
+
+             const username = user.username ? `@${user.username}` : `ID: ${user.id}`;
+             
+             // Check if this user is an admin
+             if (adminIds.has(user.id.toString())) {
+                 // Already in adminsList
+             } else {
+                 membersList.push(username);
+                 count++;
+             }
+        }
+
+        const fileContent = `ADMINLAR (${adminsList.length}):\n${adminsList.join('\n')}\n\nAZOLAR (${membersList.length}):\n${membersList.join('\n')}`;
+        const filePath = `./users_${chatId}.txt`;
+        fs.writeFileSync(filePath, fileContent);
+        
+        await bot.sendDocument(chatId, filePath, { 
+            caption: "✅ **Foydalanuvchilar yig'ildi!**\n\nAdminlar va a'zolar alohida faylda." 
+        });
+        fs.unlinkSync(filePath);
+        
+    } catch (e) {
+        console.error("Scrape error:", e);
+        bot.sendMessage(chatId, `❌ Xatolik: ${e.message}`);
+    }
+}
+
+async function scrapeAdmins(chatId, client, link) {
+    try {
+        const entity = await client.getEntity(link);
+        const adminsArr = await client.getParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
+        
+        let message = `👮 **Guruh Adminlari:**\n\n`;
+        for (const admin of adminsArr) {
+            const username = admin.username ? `@${admin.username}` : "Username yo'q";
+            message += `👤 ${admin.firstName || 'Admin'}\n   ├ Username: ${username}\n   └ ID: \`${admin.id}\`\n\n`;
+        }
+        
+        if (message.length > 4000) {
+            const chunks = message.match(/.{1,4000}/g);
+            for (const chunk of chunks) {
+                await bot.sendMessage(chatId, chunk, { parse_mode: "Markdown" });
+            }
+        } else {
+            await bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
+        }
+        
+    } catch (e) {
+        console.error("Admin scrape error:", e);
+        bot.sendMessage(chatId, `❌ Xatolik: ${e.message}`);
+    }
+}
+
 async function startReklama(chatId, client, users, text) {
     let sentCount = 0;
     let failCount = 0;
