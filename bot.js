@@ -615,21 +615,15 @@ bot.on('message', async (msg) => {
                 // Stikerni yuklab olamiz
                 try {
                     const fileId = msg.sticker.file_id;
-                    const downloadPath = `./temp/sticker_${chatId}.webp`;
+                    const tempDir = './temp';
+
+                    // Temp papka borligini tekshirish
+                    if (!fs.existsSync(tempDir)) {
+                        fs.mkdirSync(tempDir, { recursive: true });
+                    }
                     
                     // Bot API orqali yuklash
-                    await bot.downloadFile(fileId, './temp');
-                    
-                    // Fayl nomini to'g'irlash (downloadFile o'zi generatsiya qilishi mumkin, shuning uchun qayta nomlaymiz yoki shunchaki path ni olamiz)
-                    // downloadFile return path of downloaded file relative to download dir
-                    // Ammo node-telegram-bot-api da downloadFile(fileId, downloadDir) fayl nomini o'zi hal qiladi yoki biz aniq path berishimiz kerak.
-                    // Keling, aniqroq yondashamiz:
-                    const fileLink = await bot.getFileLink(fileId);
-                    const fileName = fileLink.split('/').pop();
-                    const finalPath = `./temp/${fileName}`;
-                    
-                    // Aslida downloadFile(fileId, './temp') o'zi yetarli, u Promise<string> qaytaradi (fayl yo'li)
-                    const savedPath = await bot.downloadFile(fileId, './temp');
+                    const savedPath = await bot.downloadFile(fileId, tempDir);
                     
                     state.content = savedPath; // To'liq path
                     state.contentType = 'sticker';
@@ -985,9 +979,11 @@ async function startReyd(chatId, client, target, count, content, contentType) {
         delete reydSessions[chatId];
         
         // Agar stiker bo'lsa, vaqtinchalik faylni o'chirish
-        if (contentType === 'sticker' && content.startsWith('./temp/')) {
+        if (contentType === 'sticker') {
             try {
-                fs.unlinkSync(content);
+                if (fs.existsSync(content)) {
+                    fs.unlinkSync(content);
+                }
             } catch (e) {
                 console.error("Temp file delete error:", e);
             }
