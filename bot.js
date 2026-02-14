@@ -625,6 +625,7 @@ bot.on('message', async (msg) => {
         }
 
         if (state.step === 'WAITING_REYD_TARGET') {
+            // Agar foydalanuvchi link yuborsa, u tugma bosish deb o'ylanmasligi kerak
             state.target = text;
             state.step = 'WAITING_REYD_COUNT';
             bot.sendMessage(chatId, "🔢 Nechta xabar yuborish kerak? (Maksimal 500)");
