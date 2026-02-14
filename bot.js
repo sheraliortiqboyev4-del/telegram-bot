@@ -621,8 +621,7 @@ bot.on('message', async (msg) => {
             }
             
             state.step = 'WAITING_REYD_CONFIRM';
-            bot.sendMessage(chatId, `⚔️ **Reyd ma'lumotlari:**\n\n🎯 Nishon: ${state.target}\n🔢 Soni: ${state.count}\n📝 Xabar: ${state.contentView}\n\nBoshlashni tasdiqlaysizmi?`, {
-                parse_mode: "Markdown",
+            bot.sendMessage(chatId, `⚔️ Reyd ma'lumotlari:\n\n🎯 Nishon: ${state.target}\n🔢 Soni: ${state.count}\n📝 Xabar: ${state.contentView}\n\nBoshlashni tasdiqlaysizmi?`, {
                 reply_markup: {
                     keyboard: [["🚀 Boshlash", "🔙 Bekor qilish"]],
                     resize_keyboard: true,
