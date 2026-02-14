@@ -10,6 +10,7 @@ try {
 
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
+const path = require('path');
 const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
@@ -700,6 +701,7 @@ bot.on('message', async (msg) => {
         fileBuffer = fs.readFileSync(state.content);
     }
     
+    // Asosiy o'zgarish: Fayl yo'lini (path) ham jo'natamiz, chunki uploadFile uchun kerak bo'lishi mumkin
     startReyd(chatId, userClients[chatId], state.target, state.count, state.content, state.contentType, fileBuffer);
                 delete userStates[chatId];
             } else {
@@ -1156,6 +1158,33 @@ async function startReyd(chatId, client, target, count, content, contentType, fi
 
         bot.sendMessage(chatId, `🚀 Reyd boshlanmoqda: ${target} ga ${count} ta xabar.`);
 
+        // Agar sticker bo'lsa, oldindan upload qilib olamiz (faqat bir marta)
+        let uploadedSticker = null;
+        if (contentType === 'sticker') {
+            try {
+                const ext = path.extname(content).toLowerCase();
+                let mimeType = 'image/webp';
+                if (ext === '.tgs') mimeType = 'application/x-tgsticker';
+                if (ext === '.webm') mimeType = 'video/webm';
+                
+                // Buffer yoki path orqali upload qilish
+                const fileToUpload = fileBuffer || content;
+                
+                bot.sendMessage(chatId, "⏳ Stiker yuklanmoqda... (bu bir marta bajariladi)");
+                
+                uploadedSticker = await client.uploadFile({
+                    file: fileToUpload,
+                    workers: 1,
+                    fileName: path.basename(content),
+                    mimeType: mimeType
+                });
+                
+            } catch (upErr) {
+                console.error("Sticker upload error:", upErr);
+                // Upload o'xshamasa, oddiy yo'l bilan davom etamiz
+            }
+        }
+
         for (let i = 0; i < count; i++) {
             // Check status
             while (reydSessions[chatId] && reydSessions[chatId].status === 'paused') {
@@ -1170,11 +1199,13 @@ async function startReyd(chatId, client, target, count, content, contentType, fi
                 // Send message using userbot
                 if (contentType === 'sticker') {
                     // Stikerni tez yuborish uchun optimallashtirish
-                    // Agar buffer bo'lsa, o'shani ishlatamiz (diskdan o'qimaslik uchun)
-                    const fileToSend = fileBuffer || content;
+                    
+                    // Agar oldindan upload qilingan bo'lsa, o'shani ishlatamiz (ENG TEZ VA TO'G'RI USUL)
+                    // Agar bo'lmasa, buffer yoki fayl yo'lini ishlatamiz
+                    const fileInput = uploadedSticker || fileBuffer || content;
                     
                     await client.sendMessage(finalTarget, { 
-                        file: fileToSend, 
+                        file: fileInput, 
                         forceDocument: false,
                         attributes: [
                             new Api.DocumentAttributeSticker({
