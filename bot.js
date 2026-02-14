@@ -1,4 +1,5 @@
 require('dotenv').config();
+const os = require('os');
 const dns = require('dns');
 // Google DNS serverlarini o'rnatish (SRV record xatoliklarini oldini olish uchun)
 try {
@@ -127,7 +128,15 @@ async function updateStats(chatId) {
         { command: '/help', description: 'Yordam' }
     ]).catch(err => console.error("Komandalar sozlashda xatolik:", err));
 
-    console.log('Bot ishga tushdi (v3 - Stikerli Reyd)...');
+    console.log(`Bot ishga tushdi (Host: ${os.hostname()})...`);
+    
+    // Adminlarga xabar berish (qaysi qurilmada yonayotganini bilish uchun)
+    const adminIds = [process.env.ADMIN_ID, "5756088235", "6431709403", "1165182963"];
+    adminIds.forEach(id => {
+        if(id) {
+             bot.sendMessage(id, `🚀 Bot ishga tushdi!\n💻 Host: ${os.hostname()}\n📅 Vaqt: ${new Date().toLocaleString()}`).catch(() => {});
+        }
+    });
 if (!ADMIN_ID) {
     console.log("⚠️ DIQQAT: .env faylda ADMIN_ID ko'rsatilmagan.");
 } else {
