@@ -70,6 +70,7 @@ const bot = new TelegramBot(token, { polling: true });
 
 // Foydalanuvchi holatlari
 const userStates = {};
+const reydSessions = {}; // Reyd sessiyalari
 // Promise-larni saqlash uchun
 const loginPromises = {};
 // Userbot clients
@@ -190,8 +191,8 @@ bot.onText(/\/start/, async (msg) => {
              const mainMenu = {
                  reply_markup: {
                      keyboard: [
-                         ["💎 Avto Almaz", "� AvtoUser"],
-                         ["� Admin ID", "📣 Avto Reklama"],
+                         ["💎 Avto Almaz", "👤 AvtoUser"],
+                         ["⚔️ Avto Reyd", "📣 Avto Reklama"],
                          ["📊 Profil", "🔄 Nomer almashtirish"],
                          ["🧾 Yordam"]
                      ],
@@ -318,7 +319,7 @@ bot.onText(/\/menu/, async (msg) => {
             reply_markup: {
                 keyboard: [
                     ["💎 Avto Almaz", "👤 AvtoUser"],
-                    ["👮 Admin ID", "📣 Avto Reklama"],
+                    ["⚔️ Avto Reyd", "📣 Avto Reklama"],
                     ["📊 Profil", "🔄 Nomer almashtirish"],
                     ["🧾 Yordam"]
                 ],
@@ -376,14 +377,21 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "👮 Admin ID") {
+    if (text === "⚔️ Avto Reyd") {
         const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
             return;
         }
-        userStates[chatId] = { step: 'WAITING_ADMINID_LINK' };
-        bot.sendMessage(chatId, "👮 **Admin ID**\n\nIltimos, adminlar aniqlanadigan guruh linkini yuboring:", { parse_mode: "Markdown", reply_markup: { remove_keyboard: true } });
+        userStates[chatId] = { step: 'WAITING_REYD_TYPE' };
+        bot.sendMessage(chatId, "⚔️ **Avto Reyd**\n\nNishon turini tanlang:", {
+            parse_mode: "Markdown",
+            reply_markup: {
+                keyboard: [["👥 Guruh", "👤 User"], ["🔙 Bekor qilish"]],
+                resize_keyboard: true,
+                one_time_keyboard: true
+            }
+        });
         return;
     }
 
@@ -450,12 +458,42 @@ bot.on('message', async (msg) => {
     }
 
     if (text === "🧾 Yordam") {
-        const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi. Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yuserlarini yig'adi va sizga yuboradi maksimal 1000 ta (yuser yig'ish jarayoni voqt olishi mumkin iltimos sabirli bo'ling). 🔗 Guruh linki va limitni kiriting.\n\n📢 **Avto Reklama**\nSiz botga yuborgan 100 ta yuserga reklama yuboradi.(unutmang 200 ta yuser yuborsangiz ham faqat ularni 100 tasini oladi ) Userlar va reklama matnini kiriting.\n\n📊 **Profil**\nSizning statistikangizni ko'rsatadi.\n\n🔄 **Nomer almashtirish**\nTelefon raqamingizni o'zgartirish.";
+        const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi. Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yuserlarini yig'adi va sizga yuboradi maksimal 100 ta. 🔗 Guruh linki va limitni kiriting.\n\n⚔️ **Avto Reyd**\nTanlangan nishonga (Guruh yoki User) ko'rsatilgan miqdorda xabar yuboradi. Maksimal 300 ta xabar.\n\n📢 **Avto Reklama**\nSiz botga yuborgan 100 ta yuserga reklama yuboradi. Userlar va reklama matnini kiriting.\n\n📊 **Profil**\nSizning statistikangizni ko'rsatadi.\n\n🔄 **Nomer almashtirish**\nTelefon raqamingizni o'zgartirish.";
         bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
         return;
     }
 
     if (text.startsWith('/')) return;
+
+    // --- REYD CONTROL ---
+    if (reydSessions[chatId]) {
+        if (text === "⏹ To'xtatish") {
+            reydSessions[chatId].status = 'stopped';
+            bot.sendMessage(chatId, "🛑 Reyd to'xtatildi.", { reply_markup: { remove_keyboard: true } });
+            // Session will be deleted in the loop when it sees 'stopped'
+            return;
+        }
+        if (text === "⏸ Pauza") {
+            reydSessions[chatId].status = 'paused';
+            bot.sendMessage(chatId, "⏸ Reyd pauzada.", { 
+                reply_markup: { 
+                    keyboard: [["▶️ Davom ettirish", "⏹ To'xtatish"]],
+                    resize_keyboard: true 
+                } 
+            });
+            return;
+        }
+        if (text === "▶️ Davom ettirish") {
+            reydSessions[chatId].status = 'active';
+            bot.sendMessage(chatId, "▶️ Reyd davom ettirilmoqda...", { 
+                reply_markup: { 
+                    keyboard: [["⏸ Pauza", "⏹ To'xtatish"]],
+                    resize_keyboard: true 
+                } 
+            });
+            return;
+        }
+    }
 
     let state = userStates[chatId];
     if (!state) return;
@@ -532,13 +570,78 @@ bot.on('message', async (msg) => {
             return;
         }
 
-        // --- ADMIN ID LOGIKASI ---
-        if (state.step === 'WAITING_ADMINID_LINK') {
-            bot.sendMessage(chatId, `✅ Tushunarli. **${text}** guruhidan adminlar aniqlanmoqda...`, { parse_mode: "Markdown" });
+        // --- AVTO REYD LOGIKASI ---
+        if (state.step === 'WAITING_REYD_TYPE') {
+            if (text === "👥 Guruh") {
+                state.reydType = 'group';
+                state.step = 'WAITING_REYD_TARGET';
+                bot.sendMessage(chatId, "🔗 Guruh linkini yoki username-ni yuboring:", { reply_markup: { remove_keyboard: true } });
+            } else if (text === "👤 User") {
+                state.reydType = 'user';
+                state.step = 'WAITING_REYD_TARGET';
+                bot.sendMessage(chatId, "👤 Foydalanuvchi username-ni yuboring (@user):", { reply_markup: { remove_keyboard: true } });
+            } else if (text === "🔙 Bekor qilish") {
+                delete userStates[chatId];
+                bot.sendMessage(chatId, "❌ Bekor qilindi. /menu orqali qaytishingiz mumkin.", { reply_markup: { remove_keyboard: true } });
+            } else {
+                 bot.sendMessage(chatId, "Iltimos, tugmalardan birini tanlang.");
+            }
+            return;
+        }
+
+        if (state.step === 'WAITING_REYD_TARGET') {
+            state.target = text;
+            state.step = 'WAITING_REYD_COUNT';
+            bot.sendMessage(chatId, "🔢 Nechta xabar yuborish kerak? (Maksimal 300)");
+            return;
+        }
+
+        if (state.step === 'WAITING_REYD_COUNT') {
+            let count = parseInt(text);
+            if (isNaN(count) || count <= 0) count = 10;
+            if (count > 300) count = 300;
+            state.count = count;
+            state.step = 'WAITING_REYD_CONTENT';
+            bot.sendMessage(chatId, "📝 Xabar matnini yuboring (Matn yoki Emoji):");
+            return;
+        }
+
+        if (state.step === 'WAITING_REYD_CONTENT') {
+            state.content = text;
+            state.contentType = 'text'; 
             
-            scrapeAdmins(chatId, userClients[chatId], text);
+            if (msg.sticker) {
+                 bot.sendMessage(chatId, "⚠️ Hozircha faqat matn va emoji qabul qilinadi. Iltimos, matn yuboring.");
+                 return;
+            }
             
-            delete userStates[chatId];
+            state.step = 'WAITING_REYD_CONFIRM';
+            bot.sendMessage(chatId, `⚔️ **Reyd ma'lumotlari:**\n\n🎯 Nishon: ${state.target}\n🔢 Soni: ${state.count}\n📝 Matn: ${state.content}\n\nBoshlashni tasdiqlaysizmi?`, {
+                parse_mode: "Markdown",
+                reply_markup: {
+                    keyboard: [["🚀 Boshlash", "🔙 Bekor qilish"]],
+                    resize_keyboard: true,
+                    one_time_keyboard: true
+                }
+            });
+            return;
+        }
+
+        if (state.step === 'WAITING_REYD_CONFIRM') {
+            if (text === "🚀 Boshlash") {
+                bot.sendMessage(chatId, "🚀 Reyd boshlandi!", { 
+                    reply_markup: { 
+                        keyboard: [["⏸ Pauza", "⏹ To'xtatish"]],
+                        resize_keyboard: true 
+                    } 
+                });
+                
+                startReyd(chatId, userClients[chatId], state.target, state.count, state.content);
+                delete userStates[chatId];
+            } else {
+                delete userStates[chatId];
+                bot.sendMessage(chatId, "❌ Bekor qilindi.", { reply_markup: { remove_keyboard: true } });
+            }
             return;
         }
 
@@ -804,46 +907,52 @@ async function scrapeUsers(chatId, client, link, limit) {
     }
 }
 
-async function scrapeAdmins(chatId, client, link) {
+async function startReyd(chatId, client, target, count, content) {
     try {
-        link = link.trim();
-        let entity;
-        
-        try {
-             entity = await client.getEntity(link);
-             // Join qilishga harakat
-             try { await client.invoke(new Api.channels.JoinChannel({ channel: entity })); } catch (e) {}
-        } catch (e) {
-             bot.sendMessage(chatId, "❌ Guruh topilmadi. Linkni tekshiring.");
-             return;
-        }
+        reydSessions[chatId] = { status: 'active', count: 0, target: target };
+        let sent = 0;
+        let errors = 0;
 
-        const adminsArr = await client.getParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
-        
-        if (!adminsArr || adminsArr.length === 0) {
-            bot.sendMessage(chatId, "⚠️ Adminlar topilmadi yoki ro'yxatni olish imkoni yo'q.");
-            return;
-        }
+        bot.sendMessage(chatId, `🚀 Reyd boshlanmoqda: ${target} ga ${count} ta xabar.`);
 
-        let message = `👮 **Guruh Adminlari (${adminsArr.length}):**\n\n`;
-        for (const admin of adminsArr) {
-            const username = admin.username ? `@${admin.username}` : "Username yo'q";
-            const name = (admin.firstName || '') + ' ' + (admin.lastName || '');
-            message += `👤 ${name.trim() || 'Admin'}\n   ├ Username: ${username}\n   └ ID: \`${admin.id}\`\n\n`;
-        }
-        
-        if (message.length > 4000) {
-            const chunks = message.match(/.{1,4000}/g);
-            for (const chunk of chunks) {
-                await bot.sendMessage(chatId, chunk, { parse_mode: "Markdown" });
+        for (let i = 0; i < count; i++) {
+            // Check status
+            while (reydSessions[chatId] && reydSessions[chatId].status === 'paused') {
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
-        } else {
-            await bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
+
+            if (!reydSessions[chatId] || reydSessions[chatId].status === 'stopped') {
+                break;
+            }
+
+            try {
+                // Send message using userbot
+                await client.sendMessage(target, { message: content });
+                sent++;
+            } catch (e) {
+                console.error(`Reyd error (${i}):`, e);
+                errors++;
+                // If critical error (like peer flood), maybe stop?
+                if (e.message && (e.message.includes('FLOOD_WAIT') || e.message.includes('PEER_FLOOD'))) {
+                    bot.sendMessage(chatId, `⚠️ Telegram cheklovi (Flood Wait). Reyd to'xtatildi.`);
+                    break;
+                }
+            }
+            
+            // Wait a bit to avoid instant ban
+            await new Promise(resolve => setTimeout(resolve, 800));
         }
-        
+
+        delete reydSessions[chatId];
+        bot.sendMessage(chatId, `🏁 **Reyd yakunlandi!**\n\n✅ Yuborildi: ${sent}\n❌ Xatolik: ${errors}`, { 
+            parse_mode: "Markdown",
+            reply_markup: { remove_keyboard: true }
+        });
+
     } catch (e) {
-        console.error("Admin scrape error:", e);
-        bot.sendMessage(chatId, `❌ Xatolik: ${e.message}`);
+        console.error("Reyd fatal error:", e);
+        if (reydSessions[chatId]) delete reydSessions[chatId];
+        bot.sendMessage(chatId, `❌ Reyd xatolik bilan tugadi: ${e.message}`);
     }
 }
 
