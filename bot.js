@@ -556,14 +556,14 @@ bot.on('message', async (msg) => {
         if (state.step === 'WAITING_AVTOUSER_LINK') {
             state.targetLink = text;
             state.step = 'WAITING_AVTOUSER_LIMIT';
-            bot.sendMessage(chatId, "🔢 Nechta foydalanuvchi kerak? (Maksimal 100)", { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "🔢 Nechta foydalanuvchi kerak? (Maksimal 1000)", { parse_mode: "Markdown" });
             return;
         }
 
         if (state.step === 'WAITING_AVTOUSER_LIMIT') {
             let limit = parseInt(text);
             if (isNaN(limit) || limit <= 0) limit = 100; 
-            if (limit > 100) limit = 100;
+            if (limit > 1000) limit = 1000;
 
             bot.sendMessage(chatId, `✅ Tushunarli. **${state.targetLink}** guruhidan **${limit}** ta user yig'ilmoqda...`, { parse_mode: "Markdown" });
             
@@ -912,18 +912,28 @@ async function scrapeUsers(chatId, client, link, limit) {
             return;
         }
 
-        const fileContent = `ADMINLAR (${adminsList.length}):\n${adminsList.join('\n')}\n\nAZOLAR (${membersList.length}):\n${membersList.join('\n')}`;
-        const filePath = `./users_${chatId}.txt`; // Renderda rootga yozish mumkin, vaqtinchalik
-        fs.writeFileSync(filePath, fileContent);
+        // Adminlar uchun fayl
+        let adminsCaption = `❌ Adminlar topilmadi`;
+        if (adminsList.length > 0) {
+            const adminFilePath = `./admins_${chatId}.txt`;
+            fs.writeFileSync(adminFilePath, `ADMINLAR (${adminsList.length}):\n${adminsList.join('\n')}`);
+            await bot.sendDocument(chatId, adminFilePath, { caption: `👮 **Guruh Adminlari** (${adminsList.length} ta)` });
+            try { fs.unlinkSync(adminFilePath); } catch (e) {}
+            adminsCaption = `✅ Adminlar: ${adminsList.length} ta`;
+        }
+
+        // A'zolar uchun fayl
+        let membersCaption = `❌ A'zolar topilmadi`;
+        if (membersList.length > 0) {
+            const memberFilePath = `./members_${chatId}.txt`;
+            fs.writeFileSync(memberFilePath, `AZOLAR (${membersList.length}):\n${membersList.join('\n')}`);
+            await bot.sendDocument(chatId, memberFilePath, { caption: `👤 **Guruh A'zolari** (${membersList.length} ta)` });
+            try { fs.unlinkSync(memberFilePath); } catch (e) {}
+            membersCaption = `✅ A'zolar: ${membersList.length} ta`;
+        }
         
-        await bot.sendDocument(chatId, filePath, { 
-            caption: `✅ **Jarayon yakunlandi!**\n\n👮 Adminlar: ${adminsList.length}\n👤 A'zolar: ${membersList.length}\n📂 Jami: ${adminsList.length + membersList.length}` 
-        });
-        
-        // Faylni o'chirish
-        try {
-            fs.unlinkSync(filePath);
-        } catch (e) {}
+        // Yakuniy xabar
+        bot.sendMessage(chatId, `✅ **Jarayon yakunlandi!**\n\n${adminsCaption}\n${membersCaption}`, { parse_mode: "Markdown" });
         
         // Status xabarni o'chirish
         bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
