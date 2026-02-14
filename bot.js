@@ -387,7 +387,7 @@ bot.on('message', async (msg) => {
         }
 
         userStates[chatId] = { step: 'WAITING_AVTOUSER_LINK' };
-        bot.sendMessage(chatId, "👤 **AvtoUser**\n\nFoydalanuvchilarni qaysi guruhdan yig'ib olish kerak?\n\n🔗 **Guruh linkini yuboring:**\n(Masalan: `https://t.me/guruh` yoki `@guruh` yoki `https://t.me/+...`)", { 
+        bot.sendMessage(chatId, " Guruh linkini yubor:", { 
             parse_mode: "Markdown", 
             reply_markup: { remove_keyboard: true } 
         });
@@ -578,7 +578,7 @@ bot.on('message', async (msg) => {
 
             state.targetLink = link;
             state.step = 'WAITING_AVTOUSER_LIMIT';
-            bot.sendMessage(chatId, "🔢 **Nechta foydalanuvchi kerak?**\n\n(Masalan: `100` yoki `1000`)\nMaksimal: 2000", { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "🔢 Nechta yig'ay? (max 1000)", { parse_mode: "Markdown" });
             return;
         }
 
@@ -921,17 +921,33 @@ async function startAvtoUser(chatId, client, link, limit) {
         bot.sendMessage(chatId, `✅ **${title}** guruhiga ulanildi.\n\n2. A'zolar ro'yxati shakllantirilmoqda...`);
 
         // 2. MA'LUMOTLARNI YIG'ISH
+        let admins = [];
         let members = [];
         
         try {
-            // IterParticipants - bu eng ishonchli usul
+            // 2.1 Adminlarni olish
+            try {
+                // ChannelParticipantsAdmins faqat Channel/Supergroup uchun ishlaydi
+                const adminsIter = client.iterParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
+                for await (const user of adminsIter) {
+                    if (user.deleted || user.bot || user.isSelf) continue;
+                    if (user.username) admins.push(`@${user.username}`);
+                }
+            } catch (e) {
+                console.log("Admin fetch error (skipping):", e.message);
+            }
+
+            // 2.2 Memberlarni olish
             for await (const user of client.iterParticipants(entity, { limit: limit + 200 })) {
                 if (members.length >= limit) break;
                 
                 // Filtrlash: O'chirilgan, Bot, yoki O'zimiz
                 if (user.deleted || user.bot || user.isSelf) continue;
 
-                // Faqat Username borlarni olamiz (User talabi bo'yicha odatda shunday)
+                // Adminlarni memberlar ro'yxatiga qo'shmaslik (dublikat bo'lmasligi uchun)
+                if (admins.includes(`@${user.username}`)) continue;
+
+                // Faqat Username borlarni olamiz
                 if (user.username) {
                     members.push(`@${user.username}`);
                 }
@@ -942,22 +958,36 @@ async function startAvtoUser(chatId, client, link, limit) {
             return;
         }
 
-        if (members.length === 0) {
+        if (members.length === 0 && admins.length === 0) {
             bot.sendMessage(chatId, "❌ Hech qanday foydalanuvchi topilmadi (username borlar). Guruh a'zolari yashirilgan bo'lishi mumkin.");
             return;
         }
 
-        // 3. FAYL YARATISH VA YUBORISH
-        const fileName = `Users_${chatId}_${Date.now()}.txt`;
-        const content = `GURUH: ${title}\nJAMI TOPILDI: ${members.length}\nSANA: ${new Date().toLocaleString()}\n\n` + members.join('\n');
+        // 3. NATIJANI YUBORISH (TEXT)
+        const total = admins.length + members.length;
         
-        fs.writeFileSync(fileName, content);
-        
-        await bot.sendDocument(chatId, fileName, { 
-            caption: `✅ **Missiya bajarildi!**\n\n📂 Guruh: ${title}\n👥 Yig'ildi: ${members.length} ta username` 
-        });
+        let resultMessage = `📊 NATIJA:\n\n`;
+        resultMessage += `👑 Adminlar: ${admins.length} ta\n`;
+        resultMessage += `👥 Azolar: ${members.length} ta\n`;
+        resultMessage += `📦 Jami: ${total} ta\n\n`;
 
-        fs.unlinkSync(fileName);
+        if (admins.length > 0) {
+            resultMessage += `👑 **ADMINLAR USERNAMELARI:**\n${admins.join('\n')}\n\n`;
+        }
+
+        if (members.length > 0) {
+            resultMessage += `👥 **AZOLAR USERNAMELARI:**\n${members.join('\n')}`;
+        }
+
+        // Xabarni bo'laklab yuborish (Telegram limit 4096)
+        if (resultMessage.length > 4000) {
+            const parts = resultMessage.match(/[\s\S]{1,4000}/g) || [];
+            for (const part of parts) {
+                await bot.sendMessage(chatId, part, { parse_mode: "Markdown" });
+            }
+        } else {
+            await bot.sendMessage(chatId, resultMessage, { parse_mode: "Markdown" });
+        }
 
     } catch (err) {
         console.error("General AvtoUser error:", err);
