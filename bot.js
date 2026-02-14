@@ -458,7 +458,7 @@ bot.on('message', async (msg) => {
     }
 
     if (text === "🧾 Yordam") {
-        const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi. Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yuserlarini yig'adi va sizga yuboradi maksimal 100 ta. 🔗 Guruh linki va limitni kiriting.\n\n⚔️ **Avto Reyd**\nTanlangan nishonga (Guruh yoki User) ko'rsatilgan miqdorda xabar yuboradi. Maksimal 300 ta xabar.\n\n📢 **Avto Reklama**\nSiz botga yuborgan 100 ta yuserga reklama yuboradi. Userlar va reklama matnini kiriting.\n\n📊 **Profil**\nSizning statistikangizni ko'rsatadi.\n\n🔄 **Nomer almashtirish**\nTelefon raqamingizni o'zgartirish.";
+        const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi. Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yuserlarini yig'adi va sizga yuboradi maksimal 100 ta. 🔗 Guruh linki va limitni kiriting.\n\n⚔️ **Avto Reyd**\nTanlangan nishonga (Guruh yoki User) ko'rsatilgan miqdorda xabar yuboradi. Maksimal 500 ta xabar.\n\n📢 **Avto Reklama**\nSiz botga yuborgan 100 ta yuserga reklama yuboradi. Userlar va reklama matnini kiriting.\n\n📊 **Profil**\nSizning statistikangizni ko'rsatadi.\n\n🔄 **Nomer almashtirish**\nTelefon raqamingizni o'zgartirish.";
         bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
         return;
     }
@@ -592,14 +592,14 @@ bot.on('message', async (msg) => {
         if (state.step === 'WAITING_REYD_TARGET') {
             state.target = text;
             state.step = 'WAITING_REYD_COUNT';
-            bot.sendMessage(chatId, "🔢 Nechta xabar yuborish kerak? (Maksimal 300)");
+            bot.sendMessage(chatId, "🔢 Nechta xabar yuborish kerak? (Maksimal 500)");
             return;
         }
 
         if (state.step === 'WAITING_REYD_COUNT') {
             let count = parseInt(text);
             if (isNaN(count) || count <= 0) count = 10;
-            if (count > 300) count = 300;
+            if (count > 500) count = 500;
             state.count = count;
             state.step = 'WAITING_REYD_CONTENT';
             bot.sendMessage(chatId, "📝 Xabar matnini yuboring (Matn yoki Emoji):");
@@ -939,8 +939,8 @@ async function startReyd(chatId, client, target, count, content) {
                 }
             }
             
-            // Wait a bit to avoid instant ban
-            await new Promise(resolve => setTimeout(resolve, 800));
+            // Wait a bit to avoid instant ban (5 msg/sec = 200ms)
+            await new Promise(resolve => setTimeout(resolve, 200));
         }
 
         delete reydSessions[chatId];
