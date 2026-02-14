@@ -694,7 +694,13 @@ bot.on('message', async (msg) => {
                     } 
                 });
                 
-                startReyd(chatId, userClients[chatId], state.target, state.count, state.content, state.contentType);
+                // Stikerni bir marta yuklab olib, qayta-qayta ishlatish uchun bufferga o'qib olamiz (agar fayl bo'lsa)
+    let fileBuffer = null;
+    if (state.contentType === 'sticker' && fs.existsSync(state.content)) {
+        fileBuffer = fs.readFileSync(state.content);
+    }
+    
+    startReyd(chatId, userClients[chatId], state.target, state.count, state.content, state.contentType, fileBuffer);
                 delete userStates[chatId];
             } else {
                 delete userStates[chatId];
@@ -1085,7 +1091,7 @@ async function startAvtoUser(chatId, client, link, limit) {
     }
 }
 
-async function startReyd(chatId, client, target, count, content, contentType) {
+async function startReyd(chatId, client, target, count, content, contentType, fileBuffer) {
     try {
         reydSessions[chatId] = { status: 'active', count: 0, target: target };
         let sent = 0;
@@ -1163,11 +1169,12 @@ async function startReyd(chatId, client, target, count, content, contentType) {
             try {
                 // Send message using userbot
                 if (contentType === 'sticker') {
-                    // Stikerni fayl yo'li orqali yuborish
-                    // forceDocument: false - stiker sifatida yuborishga harakat qiladi
-                    // Attributes qo'shish orqali aniq stiker ekanligini bildiramiz
+                    // Stikerni tez yuborish uchun optimallashtirish
+                    // Agar buffer bo'lsa, o'shani ishlatamiz (diskdan o'qimaslik uchun)
+                    const fileToSend = fileBuffer || content;
+                    
                     await client.sendMessage(finalTarget, { 
-                        file: content, 
+                        file: fileToSend, 
                         forceDocument: false,
                         attributes: [
                             new Api.DocumentAttributeSticker({
@@ -1190,8 +1197,9 @@ async function startReyd(chatId, client, target, count, content, contentType) {
                 }
             }
             
-            // Wait a bit to avoid instant ban (5 msg/sec = 200ms)
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // Wait a bit to avoid instant ban (tezlikni oshirdik: 50ms)
+            // Telegram baribir o'zi sekinlashtiradi, lekin biz sun'iy kutishni kamaytiramiz
+            await new Promise(resolve => setTimeout(resolve, 50));
         }
 
         delete reydSessions[chatId];
