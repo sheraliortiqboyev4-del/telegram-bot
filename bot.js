@@ -352,7 +352,9 @@ bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    if (!text) return;
+    // Agar text ham, stiker ham yo'q bo'lsa, chiqib ketamiz.
+    // Lekin stiker bo'lsa, uni pastda (REYD_CONTENT da) ishlatamiz.
+    if (!text && !msg.sticker) return;
 
     // --- MENYU TUGMALARI LOGIKASI ---
     if (text === "💎 Avto Almaz") {
