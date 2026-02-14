@@ -126,7 +126,7 @@ async function updateStats(chatId) {
         { command: '/help', description: 'Yordam' }
     ]).catch(err => console.error("Komandalar sozlashda xatolik:", err));
 
-    console.log('Bot ishga tushdi (v2)...');
+    console.log('Bot ishga tushdi (v3 - Stikerli Reyd)...');
 if (!ADMIN_ID) {
     console.log("⚠️ DIQQAT: .env faylda ADMIN_ID ko'rsatilmagan.");
 } else {
