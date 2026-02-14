@@ -949,7 +949,7 @@ async function startAvtoUser(chatId, client, link, limit) {
                 if (user.deleted || user.bot || user.isSelf) continue;
 
                 // Adminlarni memberlar ro'yxatiga qo'shmaslik (dublikat bo'lmasligi uchun)
-                if (admins.some(admin => admin.includes(user.username.replace(/_/g, '\\_')))) continue;
+                if (user.username && admins.some(admin => admin.includes(user.username.replace(/_/g, '\\_')))) continue;
 
                 // Faqat Username borlarni olamiz
                 if (user.username) {
