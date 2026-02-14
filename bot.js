@@ -1090,6 +1090,63 @@ async function startReyd(chatId, client, target, count, content, contentType) {
         let sent = 0;
         let errors = 0;
 
+        // Targetni aniqlash va guruhga qo'shilish
+        let finalTarget = target;
+        try {
+            // Agar target link bo'lsa (https://t.me/...)
+            if (target.includes("t.me/")) {
+                const inviteLink = target.split("t.me/")[1].replace("+", "").trim();
+                
+                // Agar public link bo'lsa (username)
+                if (!target.includes("+") && !inviteLink.includes("joinchat")) {
+                     finalTarget = "@" + inviteLink.replace("joinchat/", "").replace("/", "");
+                } 
+                // Agar private link bo'lsa (joinchat yoki +)
+                else {
+                    try {
+                        bot.sendMessage(chatId, "🔄 Guruhga qo'shilishga urinilmoqda...");
+                        const result = await client.invoke(new Api.messages.ImportChatInvite({
+                            hash: inviteLink.replace("joinchat/", "").replace("+", "")
+                        }));
+                        
+                        // Muvaffaqiyatli qo'shildi, endi chat ID yoki entityni olamiz
+                        if (result.updates && result.updates.length > 0) {
+                            // Chat ID ni topishga harakat qilamiz
+                            // Odatda result.chats[0] da bo'ladi
+                            if (result.chats && result.chats.length > 0) {
+                                finalTarget = result.chats[0]; // Entityni o'zini ishlatamiz
+                            }
+                        } else if (result.chat) {
+                            finalTarget = result.chat;
+                        }
+                    } catch (joinErr) {
+                        // Agar allaqachon a'zo bo'lsa (USER_ALREADY_PARTICIPANT)
+                        if (joinErr.message.includes('USER_ALREADY_PARTICIPANT')) {
+                             // A'zo bo'lsa, demak entityni checkChatInvite orqali yoki getEntity orqali olish mumkin
+                             // Yoki shunchaki linkni o'zini ishlatib ko'ramiz (ba'zida ishlaydi), lekin entityga o'girgan ma'qul.
+                             // Eng yaxshisi: CheckChatInvite orqali chatni olish
+                             try {
+                                const inviteCheck = await client.invoke(new Api.messages.CheckChatInvite({
+                                    hash: inviteLink.replace("joinchat/", "").replace("+", "")
+                                }));
+                                if (inviteCheck.chat) {
+                                    finalTarget = inviteCheck.chat;
+                                }
+                             } catch (checkErr) {
+                                 console.error("Check invite error:", checkErr);
+                             }
+                        } else {
+                            throw joinErr; // Boshqa xato bo'lsa
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Target resolve error:", e);
+            bot.sendMessage(chatId, `⚠️ Guruhni aniqlab bo'lmadi yoki qo'shilib bo'lmadi: ${e.message}`);
+            // Davom etishga harakat qilamiz (balki target to'g'ridir)
+        }
+
         bot.sendMessage(chatId, `🚀 Reyd boshlanmoqda: ${target} ga ${count} ta xabar.`);
 
         for (let i = 0; i < count; i++) {
@@ -1108,7 +1165,7 @@ async function startReyd(chatId, client, target, count, content, contentType) {
                     // Stikerni fayl yo'li orqali yuborish
                     // forceDocument: false - stiker sifatida yuborishga harakat qiladi
                     // Attributes qo'shish orqali aniq stiker ekanligini bildiramiz
-                    await client.sendMessage(target, { 
+                    await client.sendMessage(finalTarget, { 
                         file: content, 
                         forceDocument: false,
                         attributes: [
@@ -1119,7 +1176,7 @@ async function startReyd(chatId, client, target, count, content, contentType) {
                         ]
                     });
                 } else {
-                    await client.sendMessage(target, { message: content });
+                    await client.sendMessage(finalTarget, { message: content });
                 }
                 sent++;
             } catch (e) {
