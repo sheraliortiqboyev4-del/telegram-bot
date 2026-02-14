@@ -941,44 +941,72 @@ async function startAvtoUser(chatId, client, link, limit) {
                 console.log("Admin fetch error (skipping):", e.message);
             }
 
-            // 2.2 Memberlarni olish
-            // ChannelParticipantsRecent - eng so'nggi faol a'zolarni oladi (ko'pchilik guruhlarda ishlaydi)
-            let participantsFilter = new Api.ChannelParticipantsRecent();
-
-            // Agar oddiy guruh bo'lsa, filter kerak bo'lmasligi mumkin, lekin GramJS buni o'zi hal qiladi.
-            // Xavfsizlik uchun try-catch ichida iteratsiya qilamiz.
+            // 2.2 Memberlarni olish - AGGRESSIVE MODE (Barcha usullarni sinab ko'rish)
+            const uniqueUsernames = new Set();
             
+            // Adminlarni dublikat qilmaslik uchun setga qo'shamiz
+            admins.forEach(admin => {
+                // admin formati: "@username" (escaped) -> "username" (raw)
+                const raw = admin.replace(/^@/, '').replace(/\\_/g, '_');
+                uniqueUsernames.add(raw);
+            });
+
+            // Yordamchi funksiya: Userni tekshirish va qo'shish
+            const processUser = (user) => {
+                if (members.length >= limit) return false; // Limitga yetdik
+                if (user.deleted || user.bot || user.isSelf) return true; // Davom etamiz
+                if (!user.username) return true; // Usernamesiz kerak emas
+
+                if (!uniqueUsernames.has(user.username)) {
+                    uniqueUsernames.add(user.username);
+                    const safeUsername = user.username.replace(/_/g, '\\_');
+                    members.push(`@${safeUsername}`);
+                }
+                return true;
+            };
+
+            // 1-USUL: Recent (Eng so'nggi faollar - eng tez va sifatli)
             try {
-                 for await (const user of client.iterParticipants(entity, { limit: limit + 200, filter: participantsFilter })) {
+                // console.log("Method 1: Recent...");
+                for await (const user of client.iterParticipants(entity, { limit: limit, filter: new Api.ChannelParticipantsRecent() })) {
+                    processUser(user);
                     if (members.length >= limit) break;
-                    
-                    // Filtrlash: O'chirilgan, Bot, yoki O'zimiz
-                    if (user.deleted || user.bot || user.isSelf) continue;
-
-                    // Adminlarni memberlar ro'yxatiga qo'shmaslik (dublikat bo'lmasligi uchun)
-                    if (user.username && admins.some(admin => admin.includes(user.username.replace(/_/g, '\\_')))) continue;
-
-                    // Faqat Username borlarni olamiz
-                    if (user.username) {
-                        const safeUsername = user.username.replace(/_/g, '\\_');
-                        members.push(`@${safeUsername}`);
-                    }
-
-                    // Yig'ish jarayonini sekinlashtirish (User talabi: 5 daqiqada 1000 ta)
-                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
             } catch (e) {
-                console.log("Recent participants fetch failed, trying default:", e.message);
-                // Fallback: filtersiz (default)
-                for await (const user of client.iterParticipants(entity, { limit: limit + 200 })) {
-                     if (members.length >= limit) break;
-                     if (user.deleted || user.bot || user.isSelf) continue;
-                     if (user.username && admins.some(admin => admin.includes(user.username.replace(/_/g, '\\_')))) continue;
-                     if (user.username) {
-                        const safeUsername = user.username.replace(/_/g, '\\_');
-                        members.push(`@${safeUsername}`);
-                     }
-                     await new Promise(resolve => setTimeout(resolve, 100));
+                // console.log("Recent failed:", e.message);
+            }
+
+            // 2-USUL: Search Empty (Global qidiruv - standart ro'yxat)
+            if (members.length < limit) {
+                try {
+                    // console.log("Method 2: Search Empty...");
+                    await new Promise(r => setTimeout(r, 1000)); // Flood wait oldini olish
+                    for await (const user of client.iterParticipants(entity, { limit: limit, filter: new Api.ChannelParticipantsSearch({ q: '' }) })) {
+                        processUser(user);
+                        if (members.length >= limit) break;
+                    }
+                } catch (e) {
+                    // console.log("Search Empty failed:", e.message);
+                }
+            }
+
+            // 3-USUL: Alfavit bo'yicha qidiruv (Eng chuqur qidiruv - yashiringanlarni topish uchun)
+            if (members.length < limit) {
+                // console.log("Method 3: Alphabetical Search...");
+                const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
+                for (const char of alphabet) {
+                    if (members.length >= limit) break;
+                    try {
+                        // Har bir harf uchun qidiramiz
+                        for await (const user of client.iterParticipants(entity, { limit: 100, filter: new Api.ChannelParticipantsSearch({ q: char }) })) {
+                            processUser(user);
+                            if (members.length >= limit) break;
+                        }
+                    } catch (e) {
+                        // console.log(`Search '${char}' failed:`, e.message);
+                    }
+                    // Telegramni "charchatib" qo'ymaslik uchun kichik pauza
+                    await new Promise(r => setTimeout(r, 500));
                 }
             }
         } catch (e) {
