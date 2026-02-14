@@ -941,18 +941,20 @@ async function startAvtoUser(chatId, client, link, limit) {
                 console.log("Admin fetch error (skipping):", e.message);
             }
 
-            // 2.2 Memberlarni olish - AGGRESSIVE MODE (Barcha usullarni sinab ko'rish)
+            // 2.2 Memberlarni olish - XABARLAR TARIXIDAN (MESSAGE HISTORY)
+            // Guruh a'zolari yashirilgan bo'lsa ham, xabar yozganlar baribir ko'rinadi.
             const uniqueUsernames = new Set();
             
             // Adminlarni dublikat qilmaslik uchun setga qo'shamiz
             admins.forEach(admin => {
-                // admin formati: "@username" (escaped) -> "username" (raw)
                 const raw = admin.replace(/^@/, '').replace(/\\_/g, '_');
                 uniqueUsernames.add(raw);
             });
 
             // Yordamchi funksiya: Userni tekshirish va qo'shish
             const processUser = (user) => {
+                if (!user) return true;
+                if (user.className !== 'User') return true; // Faqat userlar kerak (bot/channel emas)
                 if (members.length >= limit) return false; // Limitga yetdik
                 if (user.deleted || user.bot || user.isSelf) return true; // Davom etamiz
                 if (!user.username) return true; // Usernamesiz kerak emas
@@ -965,48 +967,34 @@ async function startAvtoUser(chatId, client, link, limit) {
                 return true;
             };
 
-            // 1-USUL: Recent (Eng so'nggi faollar - eng tez va sifatli)
             try {
-                // console.log("Method 1: Recent...");
-                for await (const user of client.iterParticipants(entity, { limit: limit, filter: new Api.ChannelParticipantsRecent() })) {
-                    processUser(user);
+                // Xabarlar tarixini aylanamiz (so'nggi 3000-5000 xabar ichidan active userlarni qidiramiz)
+                // Bu eng ishonchli usul, chunki yashirin memberlar ham baribir guruhda yozgan bo'lsa chiqadi.
+                const historyLimit = limit * 5; // Har bitta user topish uchun o'rtacha 5 ta xabar ko'rish
+                
+                // console.log(`Scanning last ${historyLimit} messages...`);
+                for await (const message of client.iterMessages(entity, { limit: historyLimit })) {
                     if (members.length >= limit) break;
+                    
+                    const sender = message.sender; // GramJS sender obyektini qaytaradi
+                    if (sender) {
+                        processUser(sender);
+                    }
                 }
             } catch (e) {
-                // console.log("Recent failed:", e.message);
+                console.log("History fetch failed:", e.message);
+                bot.sendMessage(chatId, `⚠️ Tarixdan o'qishda xatolik: ${e.message}`);
             }
 
-            // 2-USUL: Search Empty (Global qidiruv - standart ro'yxat)
+            // Agar tarixdan yetarli yig'ilmasa, baribir RECENT bilan to'ldirishga harakat qilamiz
             if (members.length < limit) {
                 try {
-                    // console.log("Method 2: Search Empty...");
-                    await new Promise(r => setTimeout(r, 1000)); // Flood wait oldini olish
-                    for await (const user of client.iterParticipants(entity, { limit: limit, filter: new Api.ChannelParticipantsSearch({ q: '' }) })) {
-                        processUser(user);
-                        if (members.length >= limit) break;
+                    for await (const user of client.iterParticipants(entity, { limit: limit, filter: new Api.ChannelParticipantsRecent() })) {
+                         if (members.length >= limit) break;
+                         processUser(user);
                     }
                 } catch (e) {
-                    // console.log("Search Empty failed:", e.message);
-                }
-            }
-
-            // 3-USUL: Alfavit bo'yicha qidiruv (Eng chuqur qidiruv - yashiringanlarni topish uchun)
-            if (members.length < limit) {
-                // console.log("Method 3: Alphabetical Search...");
-                const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
-                for (const char of alphabet) {
-                    if (members.length >= limit) break;
-                    try {
-                        // Har bir harf uchun qidiramiz
-                        for await (const user of client.iterParticipants(entity, { limit: 100, filter: new Api.ChannelParticipantsSearch({ q: char }) })) {
-                            processUser(user);
-                            if (members.length >= limit) break;
-                        }
-                    } catch (e) {
-                        // console.log(`Search '${char}' failed:`, e.message);
-                    }
-                    // Telegramni "charchatib" qo'ymaslik uchun kichik pauza
-                    await new Promise(r => setTimeout(r, 500));
+                    // console.log("Recent fallback failed:", e.message);
                 }
             }
         } catch (e) {
