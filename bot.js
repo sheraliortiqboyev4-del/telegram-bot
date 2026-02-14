@@ -1198,8 +1198,8 @@ async function startReyd(chatId, client, target, count, content, contentType) {
                 }
             }
             
-            // Wait a bit to avoid instant ban (5 msg/sec = 200ms)
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // Wait a bit to avoid instant ban (tezlik oshirildi: 50ms)
+            await new Promise(resolve => setTimeout(resolve, 50));
         }
 
         delete reydSessions[chatId];
