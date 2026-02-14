@@ -223,8 +223,6 @@ bot.onText(/\/start/, async (msg) => {
             parse_mode: "Markdown",
             reply_markup: { remove_keyboard: true }
         });
-    } catch (err) {
-        console.error("Message handler error:", err);
     }
 });
 
