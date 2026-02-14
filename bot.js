@@ -360,7 +360,10 @@ bot.on('message', async (msg) => {
 
     // --- MENYU TUGMALARI LOGIKASI ---
     // Strict match o'rniga includes ishlatamiz (ba'zan emoji ko'rinmay qolishi mumkin)
-    if (text.includes("Avto Almaz")) {
+    const lowerText = text.toLowerCase();
+
+    if (lowerText.includes("avto almaz")) {
+        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
         const user = await getUser(chatId);
         if (user && user.session) {
              const clicks = user.clicks || 0;
@@ -371,18 +374,28 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text.includes("AvtoUser")) {
+
+
+    if (lowerText.includes("avtouser") || lowerText.includes("avto user")) {
+        if (userStates[chatId]) delete userStates[chatId]; 
         const user = await getUser(chatId);
+        
+        // Login qilmagan bo'lsa
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
-            bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
+            bot.sendMessage(chatId, "❌ **AvtoUser** ishlashi uchun avval hisobingizga kiring.\n\n/start ni bosing va telefon raqamingizni kiriting.", { parse_mode: "Markdown" });
             return;
         }
+
         userStates[chatId] = { step: 'WAITING_AVTOUSER_LINK' };
-        bot.sendMessage(chatId, "👤 **AvtoUser**\n\nIltimos, foydalanuvchilar yig'iladigan guruh linkini yuboring:\n(Masalan: https://t.me/guruh_linki yoki @guruh)", { parse_mode: "Markdown", reply_markup: { remove_keyboard: true } });
+        bot.sendMessage(chatId, "👤 **AvtoUser**\n\nFoydalanuvchilarni qaysi guruhdan yig'ib olish kerak?\n\n🔗 **Guruh linkini yuboring:**\n(Masalan: `https://t.me/guruh` yoki `@guruh` yoki `https://t.me/+...`)", { 
+            parse_mode: "Markdown", 
+            reply_markup: { remove_keyboard: true } 
+        });
         return;
     }
 
-    if (text.includes("Avto Reyd")) {
+    if (lowerText.includes("avto reyd")) {
+        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
         const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
@@ -400,11 +413,8 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text.includes("Avto Reklama")) {
-        // /rek funksiyasini chaqiramiz (msg obyektini simulyatsiya qilamiz yoki shunchaki logikani takrorlaymiz)
-        // Lekin eng osoni - mavjud /rek listenerini ishlatish emas, balki logikani shu yerda chaqirish.
-        // Yoki shunchaki userStates ga yozib yuborish.
-        
+    if (lowerText.includes("avto reklama")) {
+        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
         const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
@@ -416,7 +426,8 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text.includes("Profil")) {
+    if (lowerText.includes("profil")) {
+        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
         const user = await getUser(chatId);
         if (!user) {
             bot.sendMessage(chatId, "❌ Siz ro'yxatdan o'tmagansiz. /start ni bosing.");
@@ -433,7 +444,8 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text.includes("Nomer almashtirish")) {
+    if (lowerText.includes("nomer almashtirish")) {
+        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
         const user = await getUser(chatId);
         if (user) {
             // Sessiyani o'chirish
@@ -462,7 +474,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text.includes("Yordam")) {
+    if (lowerText.includes("yordam")) {
         const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi. Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yuserlarini yig'adi va sizga yuboradi maksimal 100 ta. 🔗 Guruh linki va limitni kiriting.\n\n⚔️ **Avto Reyd**\nTanlangan nishonga (Guruh yoki User) ko'rsatilgan miqdorda xabar yuboradi. Maksimal 500 ta xabar.\n\n📢 **Avto Reklama**\nSiz botga yuborgan 100 ta yuserga reklama yuboradi. Userlar va reklama matnini kiriting.\n\n📊 **Profil**\nSizning statistikangizni ko'rsatadi.\n\n🔄 **Nomer almashtirish**\nTelefon raqamingizni o'zgartirish.";
         bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
         return;
@@ -553,25 +565,34 @@ bot.on('message', async (msg) => {
             return;
         }
 
-        // --- AVTOUSER LOGIKASI ---
+
+
+        // --- AVTOUSER YANGI LOGIKA ---
         if (state.step === 'WAITING_AVTOUSER_LINK') {
-            state.targetLink = text;
+            const link = text.trim();
+            // Link validatsiyasi (oddiy)
+            if (link.length < 4) {
+                bot.sendMessage(chatId, "❌ Iltimos, to'g'ri link yuboring.");
+                return;
+            }
+
+            state.targetLink = link;
             state.step = 'WAITING_AVTOUSER_LIMIT';
-            bot.sendMessage(chatId, "🔢 Nechta foydalanuvchi kerak? (Maksimal 1000)", { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "🔢 **Nechta foydalanuvchi kerak?**\n\n(Masalan: `100` yoki `1000`)\nMaksimal: 2000", { parse_mode: "Markdown" });
             return;
         }
 
         if (state.step === 'WAITING_AVTOUSER_LIMIT') {
-            let limit = parseInt(text);
-            if (isNaN(limit) || limit <= 0) limit = 100; 
-            if (limit > 1000) limit = 1000;
+            let limit = parseInt(text.replace(/\D/g, ''));
+            if (isNaN(limit) || limit <= 0) limit = 100;
+            if (limit > 2000) limit = 2000;
 
-            bot.sendMessage(chatId, `✅ Tushunarli. **${state.targetLink}** guruhidan **${limit}** ta user yig'ilmoqda...`, { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, `⏳ **Jarayon boshlandi...**\n\n🔗 Guruh: ${state.targetLink}\n👥 Limit: ${limit}\n\nIltimos kuting, bu biroz vaqt olishi mumkin.`, { parse_mode: "Markdown" });
+
+            // Asosiy funksiyani chaqirish
+            startAvtoUser(chatId, userClients[chatId], state.targetLink, limit);
             
-            // Start process
-            scrapeUsers(chatId, userClients[chatId], state.targetLink, limit);
-            
-            delete userStates[chatId]; 
+            delete userStates[chatId];
             return;
         }
 
@@ -813,135 +834,134 @@ bot.on('message', async (msg) => {
     }
 });
 
-// Userbot logikasi
-// --- YORDAMCHI FUNKSIYALAR ---
-async function scrapeUsers(chatId, client, link, limit) {
+
+
+
+async function startAvtoUser(chatId, client, link, limit) {
     try {
-        let entity;
+        bot.sendMessage(chatId, "⏳ **Jarayon boshlandi...**\n\n1. Guruhga ulanish...");
         
-        // Linkni tozalash
+        let entity = null;
         link = link.trim();
-        
-        // 1. Entity ni aniqlash va guruhga qo'shilish
+
+        // 1. GURUHNI ANIQLASH VA QO'SHILISH
         try {
+            // A) Invite Link (t.me/+... yoki joinchat)
             if (link.includes('/+') || link.includes('joinchat')) {
-                // Yopiq guruh (Invite link)
-                const hash = link.split(/\/(\+|joinchat)\//)[1];
+                const parts = link.split(/\/(\+|joinchat)\//);
+                const hash = parts.length >= 3 ? parts[2].replace(/\//g, '') : null;
+
                 if (hash) {
                     try {
+                        // ImportChatInvite - bu private guruhga qo'shilish
                         const result = await client.invoke(new Api.messages.ImportChatInvite({ hash: hash }));
+                        
                         if (result.updates && result.updates.chats && result.updates.chats.length > 0) {
-                             entity = result.updates.chats[0];
+                            entity = result.updates.chats[0];
                         } else if (result.chats && result.chats.length > 0) {
-                             entity = result.chats[0];
+                            entity = result.chats[0];
                         }
                     } catch (e) {
-                        if (e.message.includes('USER_ALREADY_PARTICIPANT')) {
-                            // Agar allaqachon a'zo bo'lsa, oddiy getEntity bilan olib ko'ramiz
-                            // (Invite linkdan hashni olib CheckChatInvite qilish mumkin, lekin getEntity qiyin)
-                            // Shuning uchun userdan username so'rash yaxshiroq, lekin harakat qilamiz
+                        if (e.message && e.message.includes('USER_ALREADY_PARTICIPANT')) {
+                            // Agar allaqachon a'zo bo'lsa, checkChatInvite orqali ma'lumot olishga harakat qilamiz
+                            try {
+                                const check = await client.invoke(new Api.messages.CheckChatInvite({ hash: hash }));
+                                // check.chat bu yerda ChatInvite (title bor) yoki Channel/Chat bo'lishi mumkin
+                                if (check.chat) {
+                                    entity = check.chat;
+                                } else {
+                                    // Agar entity olinmasa, shunchaki xabar beramiz
+                                    bot.sendMessage(chatId, "⚠️ Siz allaqachon guruhdasiz, lekin guruh ma'lumotlarini to'liq olib bo'lmadi. Davom etib ko'ramiz...");
+                                }
+                            } catch (err) {
+                                console.error("CheckInvite error:", err);
+                            }
                         } else {
                             throw e;
                         }
                     }
                 }
-            }
-            
-            if (!entity) {
-                entity = await client.getEntity(link);
-            }
+            } 
+            // B) Public Link yoki Username (@guruh)
+            else {
+                let username = link;
+                if (link.includes('t.me/')) {
+                    const parts = link.split('t.me/');
+                    if (parts.length > 1) {
+                        username = parts[1].split('/')[0].split('?')[0];
+                    }
+                }
+                username = username.replace('@', '');
 
-            // Guruhga qo'shilishga harakat qilish (agar public bo'lsa)
-            try {
-                await client.invoke(new Api.channels.JoinChannel({ channel: entity }));
-            } catch (e) {
-                // Agar allaqachon a'zo bo'lsa yoki xatolik bo'lsa (jim yutamiz)
-            }
-
-        } catch (e) {
-            console.error("Entity resolve error:", e);
-            bot.sendMessage(chatId, "❌ Guruh topilmadi yoki unga kirish imkoni yo'q. Iltimos, link to'g'riligini tekshiring yoki bot (akkaunt) guruhga a'zo ekanligiga ishonch hosil qiling.");
-            return;
-        }
-        
-        // 2. Get Admins
-        let adminsList = [];
-        const adminIds = new Set();
-        
-        try {
-            const adminsArr = await client.getParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
-            
-            for (const admin of adminsArr) {
-                 const username = admin.username ? `@${admin.username}` : `ID: ${admin.id}`;
-                 adminsList.push(username);
-                 adminIds.add(admin.id.toString());
+                try {
+                    entity = await client.getEntity(username);
+                    // Qo'shilishga harakat qilamiz
+                    await client.invoke(new Api.channels.JoinChannel({ channel: entity }));
+                } catch (e) {
+                    if (e.message && !e.message.includes('USER_ALREADY_PARTICIPANT')) {
+                         console.error("Join public error:", e);
+                         throw e;
+                    }
+                }
             }
         } catch (e) {
-            console.error("Admin scrape warning:", e);
-            // Adminlarni ololmasak ham davom etamiz
-        }
-
-        // 3. Get Members (Iterate)
-        let membersList = [];
-        let count = 0;
-        
-        // Status xabarini yangilash
-        const statusMsg = await bot.sendMessage(chatId, "🔄 Foydalanuvchilar yig'ilmoqda... Iltimos kuting.");
-        
-        try {
-            for await (const user of client.iterParticipants(entity, { limit: limit + adminsList.length + 50 })) { 
-                 if (count >= limit) break;
-                 if (user.bot || user.deleted) continue;
-
-                 const username = user.username ? `@${user.username}` : `ID: ${user.id}`;
-                 
-                 // Check if this user is an admin
-                 if (adminIds.has(user.id.toString())) {
-                     // Already in adminsList
-                 } else {
-                     membersList.push(username);
-                     count++;
-                 }
-            }
-        } catch (e) {
-             console.error("Iterate error:", e);
-             // Borini yozamiz
-        }
-
-        if (membersList.length === 0 && adminsList.length === 0) {
-            bot.sendMessage(chatId, "❌ Foydalanuvchilarni olib bo'lmadi. Guruh sozlamalarini tekshiring (userlarni ko'rish yopiq bo'lishi mumkin).");
+            console.error("Join error:", e);
+            bot.sendMessage(chatId, `❌ **Xatolik:** Guruhga kirib bo'lmadi.\nLink noto'g'ri yoki bot spamga tushgan bo'lishi mumkin.\n\nDetal: ${e.message}`);
             return;
         }
 
-        // Adminlar uchun fayl
-        let adminsCaption = `❌ Adminlar topilmadi`;
-        if (adminsList.length > 0) {
-            const adminFilePath = `./admins_${chatId}.txt`;
-            fs.writeFileSync(adminFilePath, `ADMINLAR (${adminsList.length}):\n${adminsList.join('\n')}`);
-            await bot.sendDocument(chatId, adminFilePath, { caption: `👮 **Guruh Adminlari** (${adminsList.length} ta)` });
-            try { fs.unlinkSync(adminFilePath); } catch (e) {}
-            adminsCaption = `✅ Adminlar: ${adminsList.length} ta`;
+        if (!entity) {
+            // Agar entity null bo'lsa (masalan already participant bo'lib, entity resolve bo'lmasa)
+            // Biz getDialogs orqali qidirib ko'rishimiz mumkin, lekin bu og'ir operatsiya.
+            bot.sendMessage(chatId, "❌ Guruh ma'lumotlarini aniqlab bo'lmadi. Iltimos, linkni tekshiring.");
+            return;
         }
 
-        // A'zolar uchun fayl
-        let membersCaption = `❌ A'zolar topilmadi`;
-        if (membersList.length > 0) {
-            const memberFilePath = `./members_${chatId}.txt`;
-            fs.writeFileSync(memberFilePath, `AZOLAR (${membersList.length}):\n${membersList.join('\n')}`);
-            await bot.sendDocument(chatId, memberFilePath, { caption: `👤 **Guruh A'zolari** (${membersList.length} ta)` });
-            try { fs.unlinkSync(memberFilePath); } catch (e) {}
-            membersCaption = `✅ A'zolar: ${membersList.length} ta`;
-        }
-        
-        // Yakuniy xabar
-        bot.sendMessage(chatId, `✅ **Jarayon yakunlandi!**\n\n${adminsCaption}\n${membersCaption}`, { parse_mode: "Markdown" });
-        
-        // Status xabarni o'chirish
-        bot.deleteMessage(chatId, statusMsg.message_id).catch(() => {});
+        const title = entity.title || "Guruh";
+        bot.sendMessage(chatId, `✅ **${title}** guruhiga ulanildi.\n\n2. A'zolar ro'yxati shakllantirilmoqda...`);
 
-    } catch (e) {
-        console.error("Scrape error:", e);
-        bot.sendMessage(chatId, `❌ Xatolik yuz berdi: ${e.message}`);
+        // 2. MA'LUMOTLARNI YIG'ISH
+        let members = [];
+        
+        try {
+            // IterParticipants - bu eng ishonchli usul
+            for await (const user of client.iterParticipants(entity, { limit: limit + 200 })) {
+                if (members.length >= limit) break;
+                
+                // Filtrlash: O'chirilgan, Bot, yoki O'zimiz
+                if (user.deleted || user.bot || user.isSelf) continue;
+
+                // Faqat Username borlarni olamiz (User talabi bo'yicha odatda shunday)
+                if (user.username) {
+                    members.push(`@${user.username}`);
+                }
+            }
+        } catch (e) {
+            console.error("Member fetch error:", e);
+            bot.sendMessage(chatId, `❌ A'zolarni olishda xatolik: ${e.message}`);
+            return;
+        }
+
+        if (members.length === 0) {
+            bot.sendMessage(chatId, "❌ Hech qanday foydalanuvchi topilmadi (username borlar). Guruh a'zolari yashirilgan bo'lishi mumkin.");
+            return;
+        }
+
+        // 3. FAYL YARATISH VA YUBORISH
+        const fileName = `Users_${chatId}_${Date.now()}.txt`;
+        const content = `GURUH: ${title}\nJAMI TOPILDI: ${members.length}\nSANA: ${new Date().toLocaleString()}\n\n` + members.join('\n');
+        
+        fs.writeFileSync(fileName, content);
+        
+        await bot.sendDocument(chatId, fileName, { 
+            caption: `✅ **Missiya bajarildi!**\n\n📂 Guruh: ${title}\n👥 Yig'ildi: ${members.length} ta username` 
+        });
+
+        fs.unlinkSync(fileName);
+
+    } catch (err) {
+        console.error("General AvtoUser error:", err);
+        bot.sendMessage(chatId, `❌ Kutilmagan xatolik: ${err.message}`);
     }
 }
 
@@ -1068,6 +1088,18 @@ async function startUserbot(client, chatId) {
                 for (let j = 0; j < row.length; j++) {
                     const button = row[j];
                     if (button.text && button.text.includes('💎')) {
+                        // FIX: O'zining menyu tugmalarini bosmasligi kerak
+                        const btnText = button.text;
+                        if (btnText.includes('Avto Almaz') || 
+                            btnText.includes('AvtoUser') ||
+                            btnText.includes('Avto Reyd') ||
+                            btnText.includes('Avto Reklama') ||
+                            btnText.includes('Profil') ||
+                            btnText.includes('Nomer almashtirish') ||
+                            btnText.includes('Yordam')) {
+                            continue;
+                        }
+
                         console.log(`[${chatId}] 💎 tugma topildi: ${button.text}`);
                         try {
                             // message.click(i, j) - qator va ustun bo'yicha bosish
@@ -1111,7 +1143,7 @@ async function startUserbot(client, chatId) {
                  const text = message.text.toLowerCase();
                  
                  // Filterlash: "User joined" kabi xabarlarni o'tkazib yuborish
-                 const ignoreWords = ['joined', "qo'shildi", 'kirdi', 'left', 'chiqdi', 'kick', 'ban', 'promoted', 'admin'];
+                 const ignoreWords = ['joined', "qo'shildi", 'kirdi', 'left', 'chiqdi', 'kick', 'ban', 'promoted', 'admin', 'asosiy menyu', 'bu bot orqali siz'];
                  const shouldIgnore = ignoreWords.some(word => text.includes(word));
                  
                  // Tasdiqlash: O'yin yoki bonus ekanligini bildiruvchi so'zlar
