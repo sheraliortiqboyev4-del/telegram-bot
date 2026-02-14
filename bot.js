@@ -931,7 +931,11 @@ async function startAvtoUser(chatId, client, link, limit) {
                 const adminsIter = client.iterParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
                 for await (const user of adminsIter) {
                     if (user.deleted || user.bot || user.isSelf) continue;
-                    if (user.username) admins.push(`@${user.username}`);
+                    if (user.username) {
+                         // Markdown uchun _ belgisini escape qilamiz
+                         const safeUsername = user.username.replace(/_/g, '\\_');
+                         admins.push(`@${safeUsername}`);
+                    }
                 }
             } catch (e) {
                 console.log("Admin fetch error (skipping):", e.message);
@@ -945,12 +949,18 @@ async function startAvtoUser(chatId, client, link, limit) {
                 if (user.deleted || user.bot || user.isSelf) continue;
 
                 // Adminlarni memberlar ro'yxatiga qo'shmaslik (dublikat bo'lmasligi uchun)
-                if (admins.includes(`@${user.username}`)) continue;
+                if (admins.some(admin => admin.includes(user.username.replace(/_/g, '\\_')))) continue;
 
                 // Faqat Username borlarni olamiz
                 if (user.username) {
-                    members.push(`@${user.username}`);
+                    const safeUsername = user.username.replace(/_/g, '\\_');
+                    members.push(`@${safeUsername}`);
                 }
+
+                // Yig'ish jarayonini sekinlashtirish (User talabi: 5 daqiqada 1000 ta)
+                // 5 min = 300 sek. 1000 ta user. 300/1000 = 0.3 sek/user.
+                // Keling 0.1 sek (100ms) kutish qo'yamiz, bu yetarli va xavfsiz.
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
         } catch (e) {
             console.error("Member fetch error:", e);
@@ -979,14 +989,31 @@ async function startAvtoUser(chatId, client, link, limit) {
             resultMessage += `👥 **AZOLAR USERNAMELARI:**\n${members.join('\n')}`;
         }
 
+        const mainMenu = {
+            reply_markup: {
+                keyboard: [
+                    ["💎 Avto Almaz", "👤 AvtoUser"],
+                    ["⚔️ Avto Reyd", "📣 Avto Reklama"],
+                    ["📊 Profil", "🔄 Nomer almashtirish"],
+                    ["🧾 Yordam"]
+                ],
+                resize_keyboard: true
+            }
+        };
+
         // Xabarni bo'laklab yuborish (Telegram limit 4096)
         if (resultMessage.length > 4000) {
             const parts = resultMessage.match(/[\s\S]{1,4000}/g) || [];
-            for (const part of parts) {
-                await bot.sendMessage(chatId, part, { parse_mode: "Markdown" });
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                if (i === parts.length - 1) {
+                    await bot.sendMessage(chatId, part, { parse_mode: "Markdown", ...mainMenu });
+                } else {
+                    await bot.sendMessage(chatId, part, { parse_mode: "Markdown" });
+                }
             }
         } else {
-            await bot.sendMessage(chatId, resultMessage, { parse_mode: "Markdown" });
+            await bot.sendMessage(chatId, resultMessage, { parse_mode: "Markdown", ...mainMenu });
         }
 
     } catch (err) {
@@ -1060,9 +1087,21 @@ async function startReyd(chatId, client, target, count, content, contentType) {
             }
         }
 
+        const mainMenu = {
+            reply_markup: {
+                keyboard: [
+                    ["💎 Avto Almaz", "👤 AvtoUser"],
+                    ["⚔️ Avto Reyd", "📣 Avto Reklama"],
+                    ["📊 Profil", "🔄 Nomer almashtirish"],
+                    ["🧾 Yordam"]
+                ],
+                resize_keyboard: true
+            }
+        };
+
         bot.sendMessage(chatId, `🏁 **Reyd yakunlandi!**\n\n✅ Yuborildi: ${sent}\n❌ Xatolik: ${errors}`, { 
             parse_mode: "Markdown",
-            reply_markup: { remove_keyboard: true }
+            ...mainMenu
         });
 
     } catch (e) {
@@ -1096,7 +1135,19 @@ async function startReklama(chatId, client, users, text) {
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
-    bot.sendMessage(chatId, `✅ **Reklama yakunlandi!**\n\nJami: ${users.length}\nYuborildi: ${sentCount}\nO'xshamadi: ${failCount}`, { parse_mode: "Markdown" });
+    const mainMenu = {
+        reply_markup: {
+            keyboard: [
+                ["💎 Avto Almaz", "👤 AvtoUser"],
+                ["⚔️ Avto Reyd", "📣 Avto Reklama"],
+                ["📊 Profil", "🔄 Nomer almashtirish"],
+                ["🧾 Yordam"]
+            ],
+            resize_keyboard: true
+        }
+    };
+    
+    bot.sendMessage(chatId, `✅ **Reklama yakunlandi!**\n\nJami: ${users.length}\nYuborildi: ${sentCount}\nO'xshamadi: ${failCount}`, { parse_mode: "Markdown", ...mainMenu });
 }
 
 async function startUserbot(client, chatId) {
