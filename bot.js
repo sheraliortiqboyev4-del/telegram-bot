@@ -1093,7 +1093,33 @@ async function startUserbot(client, chatId) {
                         }
                     }
                 }
-                if (clicked) break;
+            // 2. Agar tugmalarda topilmasa, matnni tekshiramiz
+            if (!clicked && message.text && message.text.includes('💎')) {
+                 // Userlar nomidagi almaz belgisiga reaksiyani kamaytirish uchun,
+                 // Xabar botdan yoki kanaldan ekanligini tekshirishimiz mumkin, lekin hozircha oddiy tekshiruv:
+                 // Agar tugma bor bo'lsa va matnda 💎 bo'lsa, birinchi tugmani bosamiz.
+                 
+                 console.log(`[${chatId}] Matnda 💎 topildi, 1-tugma bosilmoqda...`);
+                 try {
+                     await message.click(0); // Birinchi tugmani bosish
+                     console.log(`[${chatId}] ✅ Tugma bosildi (Text match)!`);
+                     
+                     // Statistikani yangilash va xabar yuborish (Logikani takrorlamaslik uchun funksiyaga olish mumkin edi, lekin mayli)
+                     await updateStats(chatId);
+                     const user = await getUser(chatId);
+                     const totalClicks = user ? user.clicks : 1;
+
+                     let chatTitle = "Noma'lum guruh";
+                     try {
+                         const chat = await message.getChat();
+                         chatTitle = chat.title || chat.firstName || "Guruh";
+                     } catch (e) { console.error("Chat title error:", e); }
+                     
+                     bot.sendMessage(chatId, `💎 **${totalClicks}-almaz**\n📂 Guruh: **${chatTitle}**`, { parse_mode: "Markdown" });
+
+                 } catch (err) {
+                     console.error("Text match click error:", err);
+                 }
             }
         }
     }, new NewMessage({}));
