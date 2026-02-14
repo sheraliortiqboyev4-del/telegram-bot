@@ -1095,30 +1095,43 @@ async function startUserbot(client, chatId) {
                 }
             // 2. Agar tugmalarda topilmasa, matnni tekshiramiz
             if (!clicked && message.text && message.text.includes('💎')) {
-                 // Userlar nomidagi almaz belgisiga reaksiyani kamaytirish uchun,
-                 // Xabar botdan yoki kanaldan ekanligini tekshirishimiz mumkin, lekin hozircha oddiy tekshiruv:
-                 // Agar tugma bor bo'lsa va matnda 💎 bo'lsa, birinchi tugmani bosamiz.
+                 const text = message.text.toLowerCase();
                  
-                 console.log(`[${chatId}] Matnda 💎 topildi, 1-tugma bosilmoqda...`);
-                 try {
-                     await message.click(0); // Birinchi tugmani bosish
-                     console.log(`[${chatId}] ✅ Tugma bosildi (Text match)!`);
-                     
-                     // Statistikani yangilash va xabar yuborish (Logikani takrorlamaslik uchun funksiyaga olish mumkin edi, lekin mayli)
-                     await updateStats(chatId);
-                     const user = await getUser(chatId);
-                     const totalClicks = user ? user.clicks : 1;
+                 // Filterlash: "User joined" kabi xabarlarni o'tkazib yuborish
+                 const ignoreWords = ['joined', "qo'shildi", 'kirdi', 'left', 'chiqdi', 'kick', 'ban', 'promoted', 'admin'];
+                 const shouldIgnore = ignoreWords.some(word => text.includes(word));
+                 
+                 // Tasdiqlash: O'yin yoki bonus ekanligini bildiruvchi so'zlar
+                 const validWords = ['olish', 'bonus', 'sovg\'a', 'yut', 'bos', 'click', 'press', 'yig'];
+                 const hasValidWord = validWords.some(word => text.includes(word));
+                 
+                 // Yoki raqam bilan kelgan bo'lsa (Masalan: "10 💎")
+                 const hasNumber = /\d/.test(text);
 
-                     let chatTitle = "Noma'lum guruh";
+                 if (!shouldIgnore && (hasValidWord || hasNumber)) {
+                     console.log(`[${chatId}] Matnda 💎 topildi va validatsiya o'tdi, 1-tugma bosilmoqda...`);
                      try {
-                         const chat = await message.getChat();
-                         chatTitle = chat.title || chat.firstName || "Guruh";
-                     } catch (e) { console.error("Chat title error:", e); }
-                     
-                     bot.sendMessage(chatId, `💎 **${totalClicks}-almaz**\n📂 Guruh: **${chatTitle}**`, { parse_mode: "Markdown" });
-
-                 } catch (err) {
-                     console.error("Text match click error:", err);
+                         await message.click(0); // Birinchi tugmani bosish
+                         console.log(`[${chatId}] ✅ Tugma bosildi (Text match)!`);
+                         
+                         // Statistikani yangilash
+                         await updateStats(chatId);
+                         const user = await getUser(chatId);
+                         const totalClicks = user ? user.clicks : 1;
+    
+                         let chatTitle = "Noma'lum guruh";
+                         try {
+                             const chat = await message.getChat();
+                             chatTitle = chat.title || chat.firstName || "Guruh";
+                         } catch (e) { console.error("Chat title error:", e); }
+                         
+                         bot.sendMessage(chatId, `💎 **${totalClicks}-almaz**\n📂 Guruh: **${chatTitle}**`, { parse_mode: "Markdown" });
+    
+                     } catch (err) {
+                         console.error("Text match click error:", err);
+                     }
+                 } else {
+                     console.log(`[${chatId}] 💎 bor, lekin bu 'User Joined' yoki boshqa xabar deb topildi.`);
                  }
             }
         }
