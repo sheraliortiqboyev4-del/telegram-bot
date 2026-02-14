@@ -613,9 +613,33 @@ bot.on('message', async (msg) => {
 
         if (state.step === 'WAITING_REYD_CONTENT') {
             if (msg.sticker) {
-                state.content = msg.sticker.file_id;
-                state.contentType = 'sticker';
-                state.contentView = '[Stiker]';
+                // Stikerni yuklab olamiz
+                try {
+                    const fileId = msg.sticker.file_id;
+                    const downloadPath = `./temp/sticker_${chatId}.webp`;
+                    
+                    // Bot API orqali yuklash
+                    await bot.downloadFile(fileId, './temp');
+                    
+                    // Fayl nomini to'g'irlash (downloadFile o'zi generatsiya qilishi mumkin, shuning uchun qayta nomlaymiz yoki shunchaki path ni olamiz)
+                    // downloadFile return path of downloaded file relative to download dir
+                    // Ammo node-telegram-bot-api da downloadFile(fileId, downloadDir) fayl nomini o'zi hal qiladi yoki biz aniq path berishimiz kerak.
+                    // Keling, aniqroq yondashamiz:
+                    const fileLink = await bot.getFileLink(fileId);
+                    const fileName = fileLink.split('/').pop();
+                    const finalPath = `./temp/${fileName}`;
+                    
+                    // Aslida downloadFile(fileId, './temp') o'zi yetarli, u Promise<string> qaytaradi (fayl yo'li)
+                    const savedPath = await bot.downloadFile(fileId, './temp');
+                    
+                    state.content = savedPath; // To'liq path
+                    state.contentType = 'sticker';
+                    state.contentView = '[Stiker]';
+                } catch (e) {
+                    console.error("Stiker yuklashda xatolik:", e);
+                    bot.sendMessage(chatId, "⚠️ Stikerni yuklab olishda xatolik bo'ldi. Iltimos, boshqa stiker yoki matn yuboring.");
+                    return;
+                }
             } else if (text) {
                 state.content = text;
                 state.contentType = 'text';
@@ -937,20 +961,9 @@ async function startReyd(chatId, client, target, count, content, contentType) {
             try {
                 // Send message using userbot
                 if (contentType === 'sticker') {
-                    // Send sticker using file_id (needs InputFile or similar mechanism, but sending by file_id directly might fail on userbot if not cached. 
-                    // Better approach for gramjs: send media.
-                    // Simplified: assume file_id works or we need to forward/upload.
-                    // Actually, sending sticker by file_id from another bot context is tricky.
-                    // Let's try sending as a document or finding better way.
-                    // GramJS sendMessage supports 'file' param.
-                    
-                    // Simple text fallback if logic complex, but let's try passing the file_id directly.
-                    // Note: file_id from Bot API might not work directly with GramJS.
-                    // Better strategy: The user sent a sticker to the BOT. We have file_id.
-                    // Converting Bot API file_id to GramJS input is hard without downloading.
-                    // WORKAROUND: Ask user to send a sticker, we treat it as message.
-                    // For now, let's try sending it as message with file.
-                    await client.sendMessage(target, { file: content });
+                    // Stikerni fayl yo'li orqali yuborish
+                    // forceDocument: false - stiker sifatida yuborishga harakat qiladi
+                    await client.sendMessage(target, { file: content, forceDocument: false });
                 } else {
                     await client.sendMessage(target, { message: content });
                 }
@@ -970,6 +983,16 @@ async function startReyd(chatId, client, target, count, content, contentType) {
         }
 
         delete reydSessions[chatId];
+        
+        // Agar stiker bo'lsa, vaqtinchalik faylni o'chirish
+        if (contentType === 'sticker' && content.startsWith('./temp/')) {
+            try {
+                fs.unlinkSync(content);
+            } catch (e) {
+                console.error("Temp file delete error:", e);
+            }
+        }
+
         bot.sendMessage(chatId, `🏁 **Reyd yakunlandi!**\n\n✅ Yuborildi: ${sent}\n❌ Xatolik: ${errors}`, { 
             parse_mode: "Markdown",
             reply_markup: { remove_keyboard: true }
