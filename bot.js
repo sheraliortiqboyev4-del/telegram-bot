@@ -957,7 +957,17 @@ async function startReyd(chatId, client, target, count, content, contentType) {
                 if (contentType === 'sticker') {
                     // Stikerni fayl yo'li orqali yuborish
                     // forceDocument: false - stiker sifatida yuborishga harakat qiladi
-                    await client.sendMessage(target, { file: content, forceDocument: false });
+                    // Attributes qo'shish orqali aniq stiker ekanligini bildiramiz
+                    await client.sendMessage(target, { 
+                        file: content, 
+                        forceDocument: false,
+                        attributes: [
+                            new Api.DocumentAttributeSticker({
+                                alt: '👋',
+                                stickerset: new Api.InputStickerSetEmpty()
+                            })
+                        ]
+                    });
                 } else {
                     await client.sendMessage(target, { message: content });
                 }
@@ -1033,36 +1043,57 @@ async function startUserbot(client, chatId) {
     
     client.addEventHandler(async (event) => {
         const message = event.message;
-        // 1. Matnda 💎 bo'lishi kerak
-        // 2. Xabarda tugmalar bo'lishi shart
-        if (message && message.text && message.text.includes('💎')) {
-            if (message.buttons && message.buttons.length > 0) {
-                console.log(`[${chatId}] 💎 va tugma topildi!`);
-                try {
-                    await message.click(0);
-                    console.log(`[${chatId}] ✅ Tugma bosildi!`);
-                    
-                    // Statistikani yangilash
-                    await updateStats(chatId);
-                    const user = await getUser(chatId);
-                    const totalClicks = user ? user.clicks : 1;
+        
+        // Faqat tugmasi bor xabarlarni tekshiramiz
+        if (message && message.buttons && message.buttons.length > 0) {
+            // Tugmalar orasidan 💎 borini qidiramiz
+            let clicked = false;
+            
+            // GramJS da buttons 2D array (qatorlar va ustunlar)
+            // Biz barcha tugmalarni tekshiramiz
+            const rows = message.buttons;
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                for (let j = 0; j < row.length; j++) {
+                    const button = row[j];
+                    if (button.text && button.text.includes('💎')) {
+                        console.log(`[${chatId}] 💎 tugma topildi: ${button.text}`);
+                        try {
+                            // message.click(i, j) - qator va ustun bo'yicha bosish
+                            // Yoki shunchaki message.click(button) ishlashi mumkin, lekin gramjs da index ishonchliroq
+                            // message.click() argumenti index (flat) yoki (row, col) bo'lishi mumkin. 
+                            // GramJS docs ga ko'ra: message.click(i, j)
+                            
+                            // Ammo oddiy click(0) flat index ishlatadi.
+                            // Keling, i va j ni ishlatamiz.
+                            await message.click(i, j);
+                            console.log(`[${chatId}] ✅ Tugma bosildi!`);
+                            clicked = true;
+                            
+                            // Statistikani yangilash
+                            await updateStats(chatId);
+                            const user = await getUser(chatId);
+                            const totalClicks = user ? user.clicks : 1;
 
-                    // Guruh nomini olish
-                    let chatTitle = "Noma'lum guruh";
-                    try {
-                        const chat = await message.getChat();
-                        chatTitle = chat.title || chat.firstName || "Guruh";
-                    } catch (e) {
-                        console.error("Chat title error:", e);
+                            // Guruh nomini olish
+                            let chatTitle = "Noma'lum guruh";
+                            try {
+                                const chat = await message.getChat();
+                                chatTitle = chat.title || chat.firstName || "Guruh";
+                            } catch (e) {
+                                console.error("Chat title error:", e);
+                            }
+                            
+                            bot.sendMessage(chatId, `💎 **${totalClicks}-almaz**\n📂 Guruh: **${chatTitle}**`, { parse_mode: "Markdown" });
+                            
+                            // Bir marta bosilgandan keyin to'xtash (bitta xabarda bir nechta almaz bo'lsa ham)
+                            break;
+                        } catch (err) {
+                            console.error("Tugmani bosishda xatolik:", err);
+                        }
                     }
-                    
-                    bot.sendMessage(chatId, `💎 **${totalClicks}-almaz**\n📂 Guruh: **${chatTitle}**`, { parse_mode: "Markdown" });
-                } catch (err) {
-                    console.error("Tugmani bosishda xatolik:", err);
                 }
-            } else {
-                // Tugmasiz xabarlarni shunchaki ignor qilamiz (log yozmaymiz)
-                // console.log(`[${chatId}] 💎 bor, lekin tugma yo'q.`);
+                if (clicked) break;
             }
         }
     }, new NewMessage({}));
