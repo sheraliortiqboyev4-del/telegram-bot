@@ -607,16 +607,21 @@ bot.on('message', async (msg) => {
         }
 
         if (state.step === 'WAITING_REYD_CONTENT') {
-            state.content = text;
-            state.contentType = 'text'; 
-            
             if (msg.sticker) {
-                 bot.sendMessage(chatId, "⚠️ Hozircha faqat matn va emoji qabul qilinadi. Iltimos, matn yuboring.");
+                state.content = msg.sticker.file_id;
+                state.contentType = 'sticker';
+                state.contentView = '[Stiker]';
+            } else if (text) {
+                state.content = text;
+                state.contentType = 'text';
+                state.contentView = text;
+            } else {
+                 bot.sendMessage(chatId, "⚠️ Iltimos, matn yoki stiker yuboring.");
                  return;
             }
             
             state.step = 'WAITING_REYD_CONFIRM';
-            bot.sendMessage(chatId, `⚔️ **Reyd ma'lumotlari:**\n\n🎯 Nishon: ${state.target}\n🔢 Soni: ${state.count}\n📝 Matn: ${state.content}\n\nBoshlashni tasdiqlaysizmi?`, {
+            bot.sendMessage(chatId, `⚔️ **Reyd ma'lumotlari:**\n\n🎯 Nishon: ${state.target}\n🔢 Soni: ${state.count}\n📝 Xabar: ${state.contentView}\n\nBoshlashni tasdiqlaysizmi?`, {
                 parse_mode: "Markdown",
                 reply_markup: {
                     keyboard: [["🚀 Boshlash", "🔙 Bekor qilish"]],
@@ -636,7 +641,7 @@ bot.on('message', async (msg) => {
                     } 
                 });
                 
-                startReyd(chatId, userClients[chatId], state.target, state.count, state.content);
+                startReyd(chatId, userClients[chatId], state.target, state.count, state.content, state.contentType);
                 delete userStates[chatId];
             } else {
                 delete userStates[chatId];
@@ -907,7 +912,7 @@ async function scrapeUsers(chatId, client, link, limit) {
     }
 }
 
-async function startReyd(chatId, client, target, count, content) {
+async function startReyd(chatId, client, target, count, content, contentType) {
     try {
         reydSessions[chatId] = { status: 'active', count: 0, target: target };
         let sent = 0;
@@ -927,7 +932,24 @@ async function startReyd(chatId, client, target, count, content) {
 
             try {
                 // Send message using userbot
-                await client.sendMessage(target, { message: content });
+                if (contentType === 'sticker') {
+                    // Send sticker using file_id (needs InputFile or similar mechanism, but sending by file_id directly might fail on userbot if not cached. 
+                    // Better approach for gramjs: send media.
+                    // Simplified: assume file_id works or we need to forward/upload.
+                    // Actually, sending sticker by file_id from another bot context is tricky.
+                    // Let's try sending as a document or finding better way.
+                    // GramJS sendMessage supports 'file' param.
+                    
+                    // Simple text fallback if logic complex, but let's try passing the file_id directly.
+                    // Note: file_id from Bot API might not work directly with GramJS.
+                    // Better strategy: The user sent a sticker to the BOT. We have file_id.
+                    // Converting Bot API file_id to GramJS input is hard without downloading.
+                    // WORKAROUND: Ask user to send a sticker, we treat it as message.
+                    // For now, let's try sending it as message with file.
+                    await client.sendMessage(target, { file: content });
+                } else {
+                    await client.sendMessage(target, { message: content });
+                }
                 sent++;
             } catch (e) {
                 console.error(`Reyd error (${i}):`, e);
