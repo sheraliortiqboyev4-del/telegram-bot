@@ -79,6 +79,7 @@ const userClients = {};
 // DB funksiyalari (MongoDB)
 async function getUser(chatId) {
     try {
+
         return await User.findOne({ chatId });
     } catch (e) {
         console.error("DB o'qishda xatolik:", e);
@@ -505,7 +506,7 @@ bot.on('message', async (msg) => {
     const user = await getUser(chatId);
     if (!user || user.status !== 'approved') return;
 
-    try {
+    // try {
         // --- REKLAMA LOGIKASI ---
         if (state.step === 'WAITING_REK_USERS') {
             const usernames = text.match(/@\w+/g);
@@ -812,6 +813,7 @@ bot.on('message', async (msg) => {
 
     } catch (error) {
         console.error("Umumiy xatolik:", error);
+        const chatId = msg.chat.id;
         bot.sendMessage(chatId, `❌ Xatolik: ${error.message}`);
     }
 });
