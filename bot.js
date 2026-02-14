@@ -359,7 +359,8 @@ bot.on('message', async (msg) => {
     if (!text && !msg.sticker) return;
 
     // --- MENYU TUGMALARI LOGIKASI ---
-    if (text === "💎 Avto Almaz") {
+    // Strict match o'rniga includes ishlatamiz (ba'zan emoji ko'rinmay qolishi mumkin)
+    if (text.includes("Avto Almaz")) {
         const user = await getUser(chatId);
         if (user && user.session) {
              const clicks = user.clicks || 0;
@@ -370,7 +371,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "👤 AvtoUser") {
+    if (text.includes("AvtoUser")) {
         const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
@@ -381,7 +382,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "⚔️ Avto Reyd") {
+    if (text.includes("Avto Reyd")) {
         const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
@@ -399,7 +400,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "📣 Avto Reklama") {
+    if (text.includes("Avto Reklama")) {
         // /rek funksiyasini chaqiramiz (msg obyektini simulyatsiya qilamiz yoki shunchaki logikani takrorlaymiz)
         // Lekin eng osoni - mavjud /rek listenerini ishlatish emas, balki logikani shu yerda chaqirish.
         // Yoki shunchaki userStates ga yozib yuborish.
@@ -415,7 +416,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "📊 Profil") {
+    if (text.includes("Profil")) {
         const user = await getUser(chatId);
         if (!user) {
             bot.sendMessage(chatId, "❌ Siz ro'yxatdan o'tmagansiz. /start ni bosing.");
@@ -432,7 +433,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "🔄 Nomer almashtirish") {
+    if (text.includes("Nomer almashtirish")) {
         const user = await getUser(chatId);
         if (user) {
             // Sessiyani o'chirish
@@ -461,7 +462,7 @@ bot.on('message', async (msg) => {
         return;
     }
 
-    if (text === "🧾 Yordam") {
+    if (text.includes("Yordam")) {
         const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi. Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yuserlarini yig'adi va sizga yuboradi maksimal 100 ta. 🔗 Guruh linki va limitni kiriting.\n\n⚔️ **Avto Reyd**\nTanlangan nishonga (Guruh yoki User) ko'rsatilgan miqdorda xabar yuboradi. Maksimal 500 ta xabar.\n\n📢 **Avto Reklama**\nSiz botga yuborgan 100 ta yuserga reklama yuboradi. Userlar va reklama matnini kiriting.\n\n📊 **Profil**\nSizning statistikangizni ko'rsatadi.\n\n🔄 **Nomer almashtirish**\nTelefon raqamingizni o'zgartirish.";
         bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
         return;
