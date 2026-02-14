@@ -223,6 +223,8 @@ bot.onText(/\/start/, async (msg) => {
             parse_mode: "Markdown",
             reply_markup: { remove_keyboard: true }
         });
+    } catch (err) {
+        console.error("Message handler error:", err);
     }
 });
 
@@ -349,8 +351,9 @@ bot.onText(/\/rek/, async (msg) => {
 
 // Xabarlarni qayta ishlash (Login jarayoni)
 bot.on('message', async (msg) => {
+    try {
     const chatId = msg.chat.id;
-    const text = msg.text;
+    const text = msg.text || ''; // Xavfsizlik uchun: agar text yo'q bo'lsa, bo'sh satr olamiz
 
     // Agar text ham, stiker ham yo'q bo'lsa, chiqib ketamiz.
     // Lekin stiker bo'lsa, uni pastda (REYD_CONTENT da) ishlatamiz.
