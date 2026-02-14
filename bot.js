@@ -942,7 +942,16 @@ async function startAvtoUser(chatId, client, link, limit) {
             }
 
             // 2.2 Memberlarni olish
-            for await (const user of client.iterParticipants(entity, { limit: limit + 200 })) {
+            // Agar Channel/Supergroup bo'lsa, ChannelParticipantsSearch ko'proq foydalanuvchi topadi
+            let participantsFilter;
+            try {
+                // Agar oddiy guruh bo'lsa, bu xato berishi mumkin, shuning uchun try-catch
+                participantsFilter = new Api.ChannelParticipantsSearch({ q: '' });
+            } catch (e) {
+                participantsFilter = null; // Default filter
+            }
+
+            for await (const user of client.iterParticipants(entity, { limit: limit + 200, filter: participantsFilter })) {
                 if (members.length >= limit) break;
                 
                 // Filtrlash: O'chirilgan, Bot, yoki O'zimiz
