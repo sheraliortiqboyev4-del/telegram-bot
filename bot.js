@@ -941,8 +941,9 @@ async function startAvtoUser(chatId, client, link, limit) {
                 console.log("Admin fetch error (skipping):", e.message);
             }
 
-            // 2.2 Memberlarni olish - XABARLAR TARIXIDAN (MESSAGE HISTORY)
-            // Guruh a'zolari yashirilgan bo'lsa ham, xabar yozganlar baribir ko'rinadi.
+            // 2.2 Memberlarni olish - BATCH HISTORY SCRAPING (ID orqali yig'ish va keyin aniqlash)
+            // Bu usul eng tez va samarali, chunki har bir xabar uchun alohida so'rov yubormaydi.
+            const collectedUserIds = new Set();
             const uniqueUsernames = new Set();
             
             // Adminlarni dublikat qilmaslik uchun setga qo'shamiz
@@ -951,50 +952,80 @@ async function startAvtoUser(chatId, client, link, limit) {
                 uniqueUsernames.add(raw);
             });
 
-            // Yordamchi funksiya: Userni tekshirish va qo'shish
-            const processUser = (user) => {
-                if (!user) return true;
-                if (user.className !== 'User') return true; // Faqat userlar kerak (bot/channel emas)
-                if (members.length >= limit) return false; // Limitga yetdik
-                if (user.deleted || user.bot || user.isSelf) return true; // Davom etamiz
-                if (!user.username) return true; // Usernamesiz kerak emas
-
-                if (!uniqueUsernames.has(user.username)) {
-                    uniqueUsernames.add(user.username);
-                    const safeUsername = user.username.replace(/_/g, '\\_');
-                    members.push(`@${safeUsername}`);
-                }
-                return true;
-            };
-
+            // 1. Recent Users (Tezkor)
             try {
-                // Xabarlar tarixini aylanamiz (so'nggi 3000-5000 xabar ichidan active userlarni qidiramiz)
-                // Bu eng ishonchli usul, chunki yashirin memberlar ham baribir guruhda yozgan bo'lsa chiqadi.
-                const historyLimit = limit * 5; // Har bitta user topish uchun o'rtacha 5 ta xabar ko'rish
+                const recentResult = await client.invoke(new Api.channels.GetParticipants({
+                    channel: entity,
+                    filter: new Api.ChannelParticipantsRecent(),
+                    offset: 0,
+                    limit: limit,
+                    hash: 0
+                }));
                 
-                // console.log(`Scanning last ${historyLimit} messages...`);
+                if (recentResult && recentResult.users) {
+                    recentResult.users.forEach(u => collectedUserIds.add(u.id));
+                }
+            } catch (e) {
+                // console.log("Recent failed:", e.message);
+            }
+
+            // 2. History Scan (Chuqur qidiruv)
+            try {
+                // 3000 ta xabar tarixini skaner qilamiz (tez va samarali)
+                const historyLimit = 3000;
+                // iterMessages da faqat ID larni olamiz (tezroq ishlashi uchun)
                 for await (const message of client.iterMessages(entity, { limit: historyLimit })) {
-                    if (members.length >= limit) break;
+                    if (collectedUserIds.size >= limit * 2) break; // Yetarli ID yig'ilganda to'xtash
                     
-                    const sender = message.sender; // GramJS sender obyektini qaytaradi
-                    if (sender) {
-                        processUser(sender);
+                    // message.fromId (yoki senderId) ni tekshiramiz
+                    if (message.fromId && message.fromId.className === 'PeerUser') {
+                        collectedUserIds.add(message.fromId.userId);
                     }
                 }
             } catch (e) {
-                console.log("History fetch failed:", e.message);
-                bot.sendMessage(chatId, `⚠️ Tarixdan o'qishda xatolik: ${e.message}`);
+                console.log("History scan failed:", e.message);
             }
 
-            // Agar tarixdan yetarli yig'ilmasa, baribir RECENT bilan to'ldirishga harakat qilamiz
-            if (members.length < limit) {
+            // 3. ID larni User obyektlariga aylantirish (Batch Resolve)
+            if (collectedUserIds.size > 0) {
                 try {
-                    for await (const user of client.iterParticipants(entity, { limit: limit, filter: new Api.ChannelParticipantsRecent() })) {
-                         if (members.length >= limit) break;
-                         processUser(user);
+                    // ID larni arrayga o'tkazamiz
+                    const userIdsArray = Array.from(collectedUserIds);
+                    
+                    // Bo'laklab so'rov yuborish (Telegram limit: 100 ta ID bir vaqtda)
+                    const batchSize = 100;
+                    for (let i = 0; i < userIdsArray.length; i += batchSize) {
+                        if (members.length >= limit) break;
+
+                        const batch = userIdsArray.slice(i, i + batchSize);
+                        try {
+                            // getEntities o'rniga getUsers ishlatamiz (inputUser kerak bo'lishi mumkin, lekin getEntities aqlli)
+                            // Eng ishonchli usul: getEntities
+                            const resolvedUsers = await client.getEntities(batch);
+                            
+                            for (const user of resolvedUsers) {
+                                if (members.length >= limit) break;
+                                
+                                // Filtrlash
+                                if (!user || user.className !== 'User') continue;
+                                if (user.deleted || user.bot || user.isSelf) continue;
+                                if (!user.username) continue;
+
+                                if (!uniqueUsernames.has(user.username)) {
+                                    uniqueUsernames.add(user.username);
+                                    const safeUsername = user.username.replace(/_/g, '\\_');
+                                    members.push(`@${safeUsername}`);
+                                }
+                            }
+                        } catch (e) {
+                            console.log(`Batch resolve error (${i}):`, e.message);
+                        }
+                        
+                        // Kichik pauza (Rate limit oldini olish)
+                        await new Promise(r => setTimeout(r, 200));
                     }
                 } catch (e) {
-                    // console.log("Recent fallback failed:", e.message);
+                    console.log("Resolving users failed:", e.message);
                 }
             }
         } catch (e) {
