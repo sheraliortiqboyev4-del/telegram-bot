@@ -696,13 +696,13 @@ bot.on('message', async (msg) => {
                 });
                 
                 // Stikerni bir marta yuklab olib, qayta-qayta ishlatish uchun bufferga o'qib olamiz (agar fayl bo'lsa)
-    let fileBuffer = null;
-    if (state.contentType === 'sticker' && fs.existsSync(state.content)) {
-        fileBuffer = fs.readFileSync(state.content);
-    }
+    // let fileBuffer = null;
+    // if (state.contentType === 'sticker' && fs.existsSync(state.content)) {
+    //    fileBuffer = fs.readFileSync(state.content);
+    // }
     
     // Asosiy o'zgarish: Fayl yo'lini (path) ham jo'natamiz, chunki uploadFile uchun kerak bo'lishi mumkin
-    startReyd(chatId, userClients[chatId], state.target, state.count, state.content, state.contentType, fileBuffer);
+    startReyd(chatId, userClients[chatId], state.target, state.count, state.content, state.contentType);
                 delete userStates[chatId];
             } else {
                 delete userStates[chatId];
@@ -1093,7 +1093,7 @@ async function startAvtoUser(chatId, client, link, limit) {
     }
 }
 
-async function startReyd(chatId, client, target, count, content, contentType, fileBuffer) {
+async function startReyd(chatId, client, target, count, content, contentType) {
     try {
         reydSessions[chatId] = { status: 'active', count: 0, target: target };
         let sent = 0;
@@ -1158,33 +1158,6 @@ async function startReyd(chatId, client, target, count, content, contentType, fi
 
         bot.sendMessage(chatId, `🚀 Reyd boshlanmoqda: ${target} ga ${count} ta xabar.`);
 
-        // Agar sticker bo'lsa, oldindan upload qilib olamiz (faqat bir marta)
-        let uploadedSticker = null;
-        if (contentType === 'sticker') {
-            try {
-                const ext = path.extname(content).toLowerCase();
-                let mimeType = 'image/webp';
-                if (ext === '.tgs') mimeType = 'application/x-tgsticker';
-                if (ext === '.webm') mimeType = 'video/webm';
-                
-                // Buffer yoki path orqali upload qilish
-                const fileToUpload = fileBuffer || content;
-                
-                bot.sendMessage(chatId, "⏳ Stiker yuklanmoqda... (bu bir marta bajariladi)");
-                
-                uploadedSticker = await client.uploadFile({
-                    file: fileToUpload,
-                    workers: 1,
-                    fileName: path.basename(content),
-                    mimeType: mimeType
-                });
-                
-            } catch (upErr) {
-                console.error("Sticker upload error:", upErr);
-                // Upload o'xshamasa, oddiy yo'l bilan davom etamiz
-            }
-        }
-
         for (let i = 0; i < count; i++) {
             // Check status
             while (reydSessions[chatId] && reydSessions[chatId].status === 'paused') {
@@ -1198,14 +1171,11 @@ async function startReyd(chatId, client, target, count, content, contentType, fi
             try {
                 // Send message using userbot
                 if (contentType === 'sticker') {
-                    // Stikerni tez yuborish uchun optimallashtirish
-                    
-                    // Agar oldindan upload qilingan bo'lsa, o'shani ishlatamiz (ENG TEZ VA TO'G'RI USUL)
-                    // Agar bo'lmasa, buffer yoki fayl yo'lini ishlatamiz
-                    const fileInput = uploadedSticker || fileBuffer || content;
-                    
+                    // Stikerni fayl yo'li orqali yuborish
+                    // forceDocument: false - stiker sifatida yuborishga harakat qiladi
+                    // Attributes qo'shish orqali aniq stiker ekanligini bildiramiz
                     await client.sendMessage(finalTarget, { 
-                        file: fileInput, 
+                        file: content, 
                         forceDocument: false,
                         attributes: [
                             new Api.DocumentAttributeSticker({
@@ -1228,9 +1198,8 @@ async function startReyd(chatId, client, target, count, content, contentType, fi
                 }
             }
             
-            // Wait a bit to avoid instant ban (tezlikni oshirdik: 50ms)
-            // Telegram baribir o'zi sekinlashtiradi, lekin biz sun'iy kutishni kamaytiramiz
-            await new Promise(resolve => setTimeout(resolve, 50));
+            // Wait a bit to avoid instant ban (5 msg/sec = 200ms)
+            await new Promise(resolve => setTimeout(resolve, 200));
         }
 
         delete reydSessions[chatId];
