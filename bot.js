@@ -942,34 +942,44 @@ async function startAvtoUser(chatId, client, link, limit) {
             }
 
             // 2.2 Memberlarni olish
-            // Agar Channel/Supergroup bo'lsa, ChannelParticipantsSearch ko'proq foydalanuvchi topadi
-            let participantsFilter;
+            // ChannelParticipantsRecent - eng so'nggi faol a'zolarni oladi (ko'pchilik guruhlarda ishlaydi)
+            let participantsFilter = new Api.ChannelParticipantsRecent();
+
+            // Agar oddiy guruh bo'lsa, filter kerak bo'lmasligi mumkin, lekin GramJS buni o'zi hal qiladi.
+            // Xavfsizlik uchun try-catch ichida iteratsiya qilamiz.
+            
             try {
-                // Agar oddiy guruh bo'lsa, bu xato berishi mumkin, shuning uchun try-catch
-                participantsFilter = new Api.ChannelParticipantsSearch({ q: '' });
-            } catch (e) {
-                participantsFilter = null; // Default filter
-            }
+                 for await (const user of client.iterParticipants(entity, { limit: limit + 200, filter: participantsFilter })) {
+                    if (members.length >= limit) break;
+                    
+                    // Filtrlash: O'chirilgan, Bot, yoki O'zimiz
+                    if (user.deleted || user.bot || user.isSelf) continue;
 
-            for await (const user of client.iterParticipants(entity, { limit: limit + 200, filter: participantsFilter })) {
-                if (members.length >= limit) break;
-                
-                // Filtrlash: O'chirilgan, Bot, yoki O'zimiz
-                if (user.deleted || user.bot || user.isSelf) continue;
+                    // Adminlarni memberlar ro'yxatiga qo'shmaslik (dublikat bo'lmasligi uchun)
+                    if (user.username && admins.some(admin => admin.includes(user.username.replace(/_/g, '\\_')))) continue;
 
-                // Adminlarni memberlar ro'yxatiga qo'shmaslik (dublikat bo'lmasligi uchun)
-                if (user.username && admins.some(admin => admin.includes(user.username.replace(/_/g, '\\_')))) continue;
+                    // Faqat Username borlarni olamiz
+                    if (user.username) {
+                        const safeUsername = user.username.replace(/_/g, '\\_');
+                        members.push(`@${safeUsername}`);
+                    }
 
-                // Faqat Username borlarni olamiz
-                if (user.username) {
-                    const safeUsername = user.username.replace(/_/g, '\\_');
-                    members.push(`@${safeUsername}`);
+                    // Yig'ish jarayonini sekinlashtirish (User talabi: 5 daqiqada 1000 ta)
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
-
-                // Yig'ish jarayonini sekinlashtirish (User talabi: 5 daqiqada 1000 ta)
-                // 5 min = 300 sek. 1000 ta user. 300/1000 = 0.3 sek/user.
-                // Keling 0.1 sek (100ms) kutish qo'yamiz, bu yetarli va xavfsiz.
-                await new Promise(resolve => setTimeout(resolve, 100));
+            } catch (e) {
+                console.log("Recent participants fetch failed, trying default:", e.message);
+                // Fallback: filtersiz (default)
+                for await (const user of client.iterParticipants(entity, { limit: limit + 200 })) {
+                     if (members.length >= limit) break;
+                     if (user.deleted || user.bot || user.isSelf) continue;
+                     if (user.username && admins.some(admin => admin.includes(user.username.replace(/_/g, '\\_')))) continue;
+                     if (user.username) {
+                        const safeUsername = user.username.replace(/_/g, '\\_');
+                        members.push(`@${safeUsername}`);
+                     }
+                     await new Promise(resolve => setTimeout(resolve, 100));
+                }
             }
         } catch (e) {
             console.error("Member fetch error:", e);
