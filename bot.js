@@ -1093,6 +1093,8 @@ async function startUserbot(client, chatId) {
                         }
                     }
                 }
+                if (clicked) break;
+            }
             // 2. Agar tugmalarda topilmasa, matnni tekshiramiz
             if (!clicked && message.text && message.text.includes('💎')) {
                  const text = message.text.toLowerCase();
