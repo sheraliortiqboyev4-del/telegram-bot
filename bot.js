@@ -918,7 +918,8 @@ async function startAvtoUser(chatId, client, link, limit) {
         }
 
         const title = entity.title || "Guruh";
-        bot.sendMessage(chatId, `✅ **${title}** guruhiga ulanildi.\n\n2. A'zolar ro'yxati shakllantirilmoqda...`);
+        const safeTitle = title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        bot.sendMessage(chatId, `✅ <b>${safeTitle}</b> guruhiga ulanildi.\n\n2. A'zolar ro'yxati shakllantirilmoqda...`, { parse_mode: "HTML" });
 
         // 2. MA'LUMOTLARNI YIG'ISH
         let admins = [];
@@ -932,9 +933,7 @@ async function startAvtoUser(chatId, client, link, limit) {
                 for await (const user of adminsIter) {
                     if (user.deleted || user.bot || user.isSelf) continue;
                     if (user.username) {
-                         // Markdown uchun _ belgisini escape qilamiz
-                         const safeUsername = user.username.replace(/_/g, '\\_');
-                         admins.push(`@${safeUsername}`);
+                         admins.push(`@${user.username}`);
                     }
                 }
             } catch (e) {
@@ -943,12 +942,11 @@ async function startAvtoUser(chatId, client, link, limit) {
 
             // 2.2 Memberlarni olish - BATCH HISTORY SCRAPING (ID orqali yig'ish va keyin aniqlash)
             // Bu usul eng tez va samarali, chunki har bir xabar uchun alohida so'rov yubormaydi.
-            const collectedUserIds = new Set();
             const uniqueUsernames = new Set();
             
             // Adminlarni dublikat qilmaslik uchun setga qo'shamiz
             admins.forEach(admin => {
-                const raw = admin.replace(/^@/, '').replace(/\\_/g, '_');
+                const raw = admin.replace(/^@/, '');
                 uniqueUsernames.add(raw);
             });
 
@@ -963,69 +961,58 @@ async function startAvtoUser(chatId, client, link, limit) {
                 }));
                 
                 if (recentResult && recentResult.users) {
-                    recentResult.users.forEach(u => collectedUserIds.add(u.id));
+                    recentResult.users.forEach(user => {
+                        if (members.length >= limit) return;
+                        if (user.deleted || user.bot || user.isSelf) return;
+                        if (!user.username) return;
+
+                        if (!uniqueUsernames.has(user.username)) {
+                            uniqueUsernames.add(user.username);
+                            members.push(`@${user.username}`);
+                        }
+                    });
                 }
             } catch (e) {
                 // console.log("Recent failed:", e.message);
             }
 
             // 2. History Scan (Chuqur qidiruv)
-            try {
-                // 3000 ta xabar tarixini skaner qilamiz (tez va samarali)
-                const historyLimit = 3000;
-                // iterMessages da faqat ID larni olamiz (tezroq ishlashi uchun)
-                for await (const message of client.iterMessages(entity, { limit: historyLimit })) {
-                    if (collectedUserIds.size >= limit * 2) break; // Yetarli ID yig'ilganda to'xtash
-                    
-                    // message.fromId (yoki senderId) ni tekshiramiz
-                    if (message.fromId && message.fromId.className === 'PeerUser') {
-                        collectedUserIds.add(message.fromId.userId);
-                    }
-                }
-            } catch (e) {
-                console.log("History scan failed:", e.message);
-            }
-
-            // 3. ID larni User obyektlariga aylantirish (Batch Resolve)
-            if (collectedUserIds.size > 0) {
+            // Agar Recent yetarli bo'lmasa, Tarixni skaner qilamiz
+            if (members.length < limit) {
                 try {
-                    // ID larni arrayga o'tkazamiz
-                    const userIdsArray = Array.from(collectedUserIds);
+                    // 3000 ta xabar tarixini skaner qilamiz
+                    const historyLimit = 3000;
                     
-                    // Bo'laklab so'rov yuborish (Telegram limit: 100 ta ID bir vaqtda)
-                    const batchSize = 100;
-                    for (let i = 0; i < userIdsArray.length; i += batchSize) {
+                    for await (const message of client.iterMessages(entity, { limit: historyLimit })) {
                         if (members.length >= limit) break;
-
-                        const batch = userIdsArray.slice(i, i + batchSize);
-                        try {
-                            // getEntities o'rniga getUsers ishlatamiz (inputUser kerak bo'lishi mumkin, lekin getEntities aqlli)
-                            // Eng ishonchli usul: getEntities
-                            const resolvedUsers = await client.getEntities(batch);
-                            
-                            for (const user of resolvedUsers) {
-                                if (members.length >= limit) break;
-                                
-                                // Filtrlash
-                                if (!user || user.className !== 'User') continue;
-                                if (user.deleted || user.bot || user.isSelf) continue;
-                                if (!user.username) continue;
-
-                                if (!uniqueUsernames.has(user.username)) {
-                                    uniqueUsernames.add(user.username);
-                                    const safeUsername = user.username.replace(/_/g, '\\_');
-                                    members.push(`@${safeUsername}`);
-                                }
-                            }
-                        } catch (e) {
-                            console.log(`Batch resolve error (${i}):`, e.message);
-                        }
                         
-                        // Kichik pauza (Rate limit oldini olish)
-                        await new Promise(r => setTimeout(r, 200));
+                        // message.sender odatda iterMessages da keladi (agar cache da bo'lsa)
+                        let user = message.sender;
+
+                        // Agar sender bo'lmasa, ID orqali olishga harakat qilamiz (kamdan-kam holat)
+                        if (!user && message.fromId && message.fromId.userId) {
+                            try {
+                                const result = await client.invoke(new Api.users.GetUsers({
+                                    id: [message.fromId]
+                                }));
+                                if (result && result.length > 0) user = result[0];
+                            } catch (err) {
+                                // Ignore fetch error
+                            }
+                        }
+
+                        if (user && user.className === 'User') {
+                            if (user.deleted || user.bot || user.isSelf) continue;
+                            if (!user.username) continue;
+
+                            if (!uniqueUsernames.has(user.username)) {
+                                uniqueUsernames.add(user.username);
+                                members.push(`@${user.username}`);
+                            }
+                        }
                     }
                 } catch (e) {
-                    console.log("Resolving users failed:", e.message);
+                    console.log("History scan failed:", e.message);
                 }
             }
         } catch (e) {
@@ -1048,11 +1035,11 @@ async function startAvtoUser(chatId, client, link, limit) {
         resultMessage += `📦 Jami: ${total} ta\n\n`;
 
         if (admins.length > 0) {
-            resultMessage += `👑 **ADMINLAR USERNAMELARI:**\n${admins.join('\n')}\n\n`;
+            resultMessage += `👑 <b>ADMINLAR USERNAMELARI:</b>\n${admins.join('\n')}\n\n`;
         }
 
         if (members.length > 0) {
-            resultMessage += `👥 **AZOLAR USERNAMELARI:**\n${members.join('\n')}`;
+            resultMessage += `👥 <b>AZOLAR USERNAMELARI:</b>\n${members.join('\n')}`;
         }
 
         const mainMenu = {
@@ -1073,13 +1060,13 @@ async function startAvtoUser(chatId, client, link, limit) {
             for (let i = 0; i < parts.length; i++) {
                 const part = parts[i];
                 if (i === parts.length - 1) {
-                    await bot.sendMessage(chatId, part, { parse_mode: "Markdown", ...mainMenu });
+                    await bot.sendMessage(chatId, part, { parse_mode: "HTML", ...mainMenu });
                 } else {
-                    await bot.sendMessage(chatId, part, { parse_mode: "Markdown" });
+                    await bot.sendMessage(chatId, part, { parse_mode: "HTML" });
                 }
             }
         } else {
-            await bot.sendMessage(chatId, resultMessage, { parse_mode: "Markdown", ...mainMenu });
+            await bot.sendMessage(chatId, resultMessage, { parse_mode: "HTML", ...mainMenu });
         }
 
     } catch (err) {
