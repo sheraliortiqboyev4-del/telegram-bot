@@ -620,7 +620,7 @@ bot.on('message', async (msg) => {
                 delete userStates[chatId];
                 bot.sendMessage(chatId, "❌ Bekor qilindi. /menu orqali qaytishingiz mumkin.", { reply_markup: { remove_keyboard: true } });
             } else {
-                 bot.sendMessage(chatId, "Iltimos, tugmalardan birini tanlang.");
+                 // Noto'g'ri tugma bosilsa jim turamiz
             }
             return;
         }
@@ -1198,8 +1198,8 @@ async function startReyd(chatId, client, target, count, content, contentType) {
                 }
             }
             
-            // Wait a bit to avoid instant ban (tezlik oshirildi: 50ms)
-            await new Promise(resolve => setTimeout(resolve, 50));
+            // Wait a bit to avoid instant ban (tezlik maksimal: 10ms)
+            await new Promise(resolve => setTimeout(resolve, 10));
         }
 
         delete reydSessions[chatId];
