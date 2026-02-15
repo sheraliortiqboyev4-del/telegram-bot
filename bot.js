@@ -648,7 +648,7 @@ bot.on('callback_query', async (query) => {
                 parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "🔄 Yangilash", callback_data: "menu_profile" }],
+                        [{ text: "🔄 Yangilash", callback_data: "profile_reset" }],
                         [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
                     ]
                 }
@@ -659,7 +659,63 @@ bot.on('callback_query', async (query) => {
                 parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "🔄 Yangilash", callback_data: "menu_profile" }],
+                        [{ text: "🔄 Yangilash", callback_data: "profile_reset" }],
+                        [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
+                    ]
+                }
+            });
+        }
+    }
+
+    else if (data === "profile_reset") {
+        if (userStates[chatId]) delete userStates[chatId];
+        
+        // Statistikani nollash
+        await updateUser(chatId, { 
+            reydCount: 0, 
+            usersGathered: 0, 
+            adsCount: 0, 
+            clicks: 0 
+        });
+
+        const user = await getUser(chatId);
+        if (!user) return;
+
+        const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
+        const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
+        
+        let message = `👤 Sizning Profilingiz:\n\n`;
+        message += `📛 Ism: ${user.name}\n`;
+        message += `🆔 ID: \`${user.chatId}\`\n`;
+        message += `📊 Holat: ${statusIcon}\n`;
+        message += `🔌 Sessiya: ${sessionStatus}\n\n`;
+        
+        message += `⚔️ Reydlar soni: ${user.reydCount || 0} ta\n`;
+        message += `👥 Yig'ilgan userlar: ${user.usersGathered || 0} ta\n`;
+        message += `📢 Yuborilgan reklamalar: ${user.adsCount || 0} ta\n`;
+        message += `💎 To'plangan almazlar: ${user.clicks || 0} ta\n\n`;
+
+        message += `📅 Ro'yxatdan o'tgan sana: ${new Date(user.joinedAt).toLocaleDateString()}`;
+
+        try {
+            await bot.editMessageText(message, {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🔄 Yangilash", callback_data: "profile_reset" }],
+                        [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
+                    ]
+                }
+            });
+            await bot.answerCallbackQuery(query.id, { text: "🔄 Statistikalar tozalandi!" });
+        } catch (e) {
+            bot.sendMessage(chatId, message, {
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🔄 Yangilash", callback_data: "profile_reset" }],
                         [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
                     ]
                 }
