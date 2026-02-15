@@ -1740,7 +1740,16 @@ async function startUserbot(client, chatId) {
                                 const user = await getUser(chatId);
                                 const totalClicks = user ? user.clicks : 1;
 
-                                bot.sendMessage(chatId, `💎 Avto Almaz: 1 almaz olindi\n📍 𝐍𝐞𝐱𝐭 𝐋𝐞𝐯𝐞𝐥 𝐌𝐚𝐟𝐢𝐚 🇺🇿\n\n📊 Jami: ${totalClicks} ta`, { parse_mode: "Markdown" });
+                                // Guruh nomini olish
+                                let chatTitle = "Noma'lum guruh";
+                                try {
+                                    const chat = await message.getChat();
+                                    chatTitle = chat.title || chat.firstName || "Guruh";
+                                } catch (e) {
+                                    console.error("Chat title error:", e);
+                                }
+
+                                bot.sendMessage(chatId, `💎 Avto Almaz: 1 almaz olindi\n📍 ${chatTitle}\n\n📊 Jami: ${totalClicks} ta`, { parse_mode: "Markdown" });
                                 
                                 break;
                             } catch (err) {
