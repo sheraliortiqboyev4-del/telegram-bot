@@ -1724,8 +1724,9 @@ async function startUserbot(client, chatId) {
                         // Ehtimol emoji bo'lishi mumkin. "💎 Olish" ni "olish" deb hisoblash kerakmi?
                         // User: "faqat olish yoki клик sozi bolsa bossin".
                         // Menimcha, user tugmadagi text faqat "olish" yoki "клик" bo'lishini nazarda tutyapti (case-insensitive).
+                        // QO'SHIMCHA: Skrinshotda "Bosing" so'zi bor, shuning uchun uni ham qo'shamiz.
                         
-                        const isExactMatch = btnTextLower === 'olish' || btnTextLower === 'клик';
+                        const isExactMatch = btnTextLower === 'olish' || btnTextLower === 'клик' || btnTextLower === 'bosing';
 
                         if (isExactMatch) {
                             console.log(`[${chatId}] 💎 Tugma topildi (Exact): ${button.text}`);
