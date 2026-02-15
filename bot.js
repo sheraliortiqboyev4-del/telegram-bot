@@ -73,6 +73,7 @@ const bot = new TelegramBot(token, { polling: true });
 // Foydalanuvchi holatlari
 const userStates = {};
 const reydSessions = {}; // Reyd sessiyalari
+const reklamaSessions = {}; // Reklama sessiyalari
 // Promise-larni saqlash uchun
 const loginPromises = {};
 // Userbot clients
@@ -522,6 +523,43 @@ bot.on('message', async (msg) => {
         }
     }
 
+    // --- REKLAMA CONTROL ---
+    if (reklamaSessions[chatId]) {
+        if (text === "⏹ Tugatish") {
+            reklamaSessions[chatId].status = 'stopped';
+            
+            // Agar stiker bo'lsa va fayl mavjud bo'lsa, o'chiramiz
+            const session = reklamaSessions[chatId];
+            if (session.contentType === 'sticker' && session.content) {
+                try {
+                    if (fs.existsSync(session.content)) {
+                        fs.unlinkSync(session.content);
+                    }
+                } catch (e) {
+                    console.error("Temp file delete error (manual stop):", e);
+                }
+            }
+
+            delete reklamaSessions[chatId];
+            
+            bot.sendMessage(chatId, "🛑 Reklama to'xtatildi.", { reply_markup: { remove_keyboard: true } });
+            return;
+        }
+        if (text === "▶️ Davom ettirish") {
+            reklamaSessions[chatId].status = 'active';
+            const session = reklamaSessions[chatId];
+            
+            bot.sendMessage(chatId, `▶️ Reklama davom ettirilmoqda... (Qolganlar: ${session.users.length - session.currentIndex})`, { reply_markup: { remove_keyboard: true } });
+            
+            if (session.errorState) {
+                // If it was stopped due to error/flood, restart it
+                session.errorState = false;
+                startReklama(chatId, userClients[chatId], session.users, session.content, session.contentType, session.entities, session.currentIndex);
+            }
+            return;
+        }
+    }
+
     let state = userStates[chatId];
     if (!state) return;
 
@@ -595,6 +633,17 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(chatId, "🚀 Reklama yuborish boshlandi...", { reply_markup: { remove_keyboard: true } });
                 delete userStates[chatId]; // State ni tozalaymiz, lekin jarayon davom etadi
                 
+                // Reklama sessiyasini yaratish
+                reklamaSessions[chatId] = {
+                    status: 'active',
+                    users: state.rekUsers,
+                    content: state.rekContent,
+                    contentType: state.rekContentType,
+                    entities: state.rekEntities,
+                    currentIndex: 0,
+                    errorState: false
+                };
+
                 startReklama(chatId, userClients[chatId], state.rekUsers, state.rekContent, state.rekContentType, state.rekEntities);
             } else {
                 delete userStates[chatId];
@@ -1267,7 +1316,7 @@ async function startReyd(chatId, client, target, count, content, contentType) {
     }
 }
 
-async function startReklama(chatId, client, users, content, contentType, entities) {
+async function startReklama(chatId, client, users, content, contentType, entities, startIndex = 0) {
     let sentCount = 0;
     let failCount = 0;
     
@@ -1297,7 +1346,28 @@ async function startReklama(chatId, client, users, content, contentType, entitie
         }
     }
 
-    for (let i = 0; i < users.length; i++) {
+    // Sessiyani tekshiramiz
+    if (!reklamaSessions[chatId]) {
+        // Agar sessiya bo'lmasa, yangi yaratamiz (agar bu yerga to'g'ridan-to'g'ri chaqirilsa)
+        reklamaSessions[chatId] = {
+            status: 'active',
+            users: users,
+            content: content,
+            contentType: contentType,
+            entities: entities,
+            currentIndex: startIndex,
+            errorState: false
+        };
+    }
+
+    for (let i = startIndex; i < users.length; i++) {
+        // Statusni tekshirish
+        if (!reklamaSessions[chatId] || reklamaSessions[chatId].status === 'stopped') {
+            break;
+        }
+
+        reklamaSessions[chatId].currentIndex = i;
+
         const username = users[i];
         try {
             if (contentType === 'sticker') {
@@ -1314,7 +1384,6 @@ async function startReklama(chatId, client, users, content, contentType, entitie
                 });
             } else {
                 // Matnni yuborish (entities bilan)
-                // formattingEntities yoki entities ishlatamiz
                 await client.sendMessage(username, { 
                     message: content,
                     formattingEntities: messageEntities
@@ -1328,17 +1397,27 @@ async function startReklama(chatId, client, users, content, contentType, entitie
             console.error(`[${chatId}] Reklama xatolik (${username}):`, err);
             
             if (err.message && (err.message.includes('PEER_FLOOD') || err.message.includes('FLOOD_WAIT') || err.message.includes('spam'))) {
-                bot.sendMessage(chatId, `⚠️ **DIQQAT!** Telegram sizni vaqtincha spam qildi.\nReklama to'xtatildi.\nYuborildi: ${sentCount}\nO'xshamadi: ${failCount}`);
-                // Agar stiker bo'lsa o'chiramiz
-                if (contentType === 'sticker') {
-                    try { if (fs.existsSync(content)) fs.unlinkSync(content); } catch (e) {}
-                }
-                return; 
+                reklamaSessions[chatId].status = 'paused';
+                reklamaSessions[chatId].errorState = true;
+                reklamaSessions[chatId].currentIndex = i; // Shu yerdan davom ettiramiz
+                
+                bot.sendMessage(chatId, `⚠️ **DIQQAT!** Telegram sizni vaqtincha spam qildi.\nReklama vaqtincha to'xtatildi.\n\nDavom ettirish yoki tugatishni tanlang:`, {
+                    reply_markup: {
+                        keyboard: [["▶️ Davom ettirish", "⏹ Tugatish"]],
+                        resize_keyboard: true
+                    }
+                });
+                return; // Funksiyadan chiqib ketamiz, sessiya saqlanib qoladi
             }
         }
         
         // 1 sekund kutish
         await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Agar loop tugasa va status 'active' bo'lsa (yoki stopped)
+    if (reklamaSessions[chatId]) {
+        delete reklamaSessions[chatId];
     }
     
     // Agar stiker bo'lsa, vaqtinchalik faylni o'chirish
