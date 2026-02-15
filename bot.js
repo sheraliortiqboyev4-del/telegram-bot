@@ -647,8 +647,7 @@ bot.on('callback_query', async (query) => {
                 message_id: messageId,
                 parse_mode: "Markdown",
                 reply_markup: {
-// Wait a bit to avoid instant ban (tezlik maksimal: 1ms)
-await new Promise(resolve => setTimeout(resolve, 1));                    inline_keyboard: [
+                    inline_keyboard: [
                         [{ text: "🔄 Yangilash", callback_data: "profile_reset" }],
                         [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
                     ]
