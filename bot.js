@@ -79,6 +79,20 @@ const loginPromises = {};
 // Userbot clients
 const userClients = {};
 
+// Helper: Asosiy menyu (Inline)
+function getMainMenu() {
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "💎 Avto Almaz", callback_data: "menu_almaz" }, { text: "👤 AvtoUser", callback_data: "menu_avtouser" }],
+                [{ text: "⚔️ Avto Reyd", callback_data: "menu_reyd" }, { text: "📣 Avto Reklama", callback_data: "menu_reklama" }],
+                [{ text: "📊 Profil", callback_data: "menu_profile" }, { text: "🔄 Nomer almashtirish", callback_data: "menu_logout" }],
+                [{ text: "🧾 Yordam", callback_data: "menu_help" }]
+            ]
+        }
+    };
+}
+
 // DB funksiyalari (MongoDB)
 async function getUser(chatId) {
     try {
@@ -165,13 +179,22 @@ bot.onText(/\/start/, async (msg) => {
         }
     }
 
+    // To'lov xabari va tugmasi
+    const payMessage = `👋 Assalomu alaykum, Hurmatli **${name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`;
+    const payOptions = {
+        parse_mode: "Markdown",
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
+            ]
+        }
+    };
+
     if (!user) {
         // Yangi oddiy foydalanuvchi
         user = await updateUser(chatId, { name, status: 'pending' });
         
-        bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali tulov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, {
-            parse_mode: "Markdown"
-        });
+        bot.sendMessage(chatId, payMessage, payOptions);
         
         // Adminga xabar berish
         bot.sendMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)\n/approve ${chatId} - Tasdiqlash\n/block ${chatId} - Bloklash`, {
@@ -181,12 +204,12 @@ bot.onText(/\/start/, async (msg) => {
     }
 
     if (user.status === 'blocked') {
-        bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali tulov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, payMessage, payOptions);
         return;
     }
 
     if (user.status === 'pending') {
-        bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali tulov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, payMessage, payOptions);
         
         // Adminga qayta eslatma
         bot.sendMessage(ADMIN_ID, `⏳ **Foydalanuvchi hali ham kutmoqda!**\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\nStatus: Pending\n/approve ${chatId} - Tasdiqlash`, {
@@ -200,21 +223,10 @@ bot.onText(/\/start/, async (msg) => {
         // Agar allaqachon sessiya bo'lsa
         if (user.session) {
              const clicks = user.clicks || 0;
-             const mainMenu = {
-                 reply_markup: {
-                     keyboard: [
-                         ["💎 Avto Almaz", "👤 AvtoUser"],
-                         ["⚔️ Avto Reyd", "📣 Avto Reklama"],
-                         ["📊 Profil", "🔄 Nomer almashtirish"],
-                         ["🧾 Yordam"]
-                     ],
-                     resize_keyboard: true
-                 }
-             };
 
-             bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• � **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
+             bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
                  parse_mode: "Markdown",
-                 ...mainMenu
+                 ...getMainMenu()
              });
              
              // Userbotni qayta yuklash (agar o'chib qolgan bo'lsa)
@@ -272,7 +284,14 @@ bot.onText(/\/block (\d+)/, async (msg, match) => {
         }
 
         bot.sendMessage(chatId, `⛔️ Foydalanuvchi ${targetId} bloklandi va botdan uzildi.`);
-        bot.sendMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali tulov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { parse_mode: "Markdown" });
+        bot.sendMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { 
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
+                ]
+            }
+        });
     } else {
         bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi.");
     }
@@ -327,18 +346,7 @@ bot.onText(/\/menu/, async (msg) => {
     const user = await getUser(chatId);
 
     if (user && user.session && user.status === 'approved') {
-        const mainMenu = {
-            reply_markup: {
-                keyboard: [
-                    ["💎 Avto Almaz", "👤 AvtoUser"],
-                    ["⚔️ Avto Reyd", "📣 Avto Reklama"],
-                    ["📊 Profil", "🔄 Nomer almashtirish"],
-                    ["🧾 Yordam"]
-                ],
-                resize_keyboard: true
-            }
-        };
-        bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...mainMenu });
+        bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu() });
     } else {
         bot.sendMessage(chatId, "❌ Menyuni ochish uchun avval tizimga kiring (/start).");
     }
@@ -359,22 +367,18 @@ bot.onText(/\/rek/, async (msg) => {
 });
 
 
-// Xabarlarni qayta ishlash (Login jarayoni)
-bot.on('message', async (msg) => {
-    try {
-    const chatId = msg.chat.id;
-    const text = msg.text || ''; // Xavfsizlik uchun: agar text yo'q bo'lsa, bo'sh satr olamiz
+// Callback Query Handler (Inline tugmalar uchun)
+bot.on('callback_query', async (query) => {
+    const chatId = query.message.chat.id;
+    const data = query.data;
+    const messageId = query.message.message_id;
 
-    // Agar text ham, stiker ham yo'q bo'lsa, chiqib ketamiz.
-    // Lekin stiker bo'lsa, uni pastda (REYD_CONTENT da) ishlatamiz.
-    if (!text && !msg.sticker) return;
+    // Tugmani bosganda soatni aylantirib turish (loading...)
+    bot.answerCallbackQuery(query.id);
 
-    // --- MENYU TUGMALARI LOGIKASI ---
-    // Strict match o'rniga includes ishlatamiz (ba'zan emoji ko'rinmay qolishi mumkin)
-    const lowerText = text.toLowerCase();
-
-    if (lowerText.includes("avto almaz")) {
-        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
+    // --- MENYU HANDLERS ---
+    if (data === "menu_almaz") {
+        if (userStates[chatId]) delete userStates[chatId];
         const user = await getUser(chatId);
         if (user && user.session) {
              const clicks = user.clicks || 0;
@@ -382,31 +386,23 @@ bot.on('message', async (msg) => {
         } else {
              bot.sendMessage(chatId, "❌ Bu bo'limga kirish uchun avval tizimga kiring (/start).");
         }
-        return;
     }
 
-
-
-    if (lowerText.includes("avtouser") || lowerText.includes("avto user")) {
+    else if (data === "menu_avtouser") {
         if (userStates[chatId]) delete userStates[chatId]; 
         const user = await getUser(chatId);
         
-        // Login qilmagan bo'lsa
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ **AvtoUser** ishlashi uchun avval hisobingizga kiring.\n\n/start ni bosing va telefon raqamingizni kiriting.", { parse_mode: "Markdown" });
             return;
         }
 
         userStates[chatId] = { step: 'WAITING_AVTOUSER_LINK' };
-        bot.sendMessage(chatId, " Guruh linkini yubor:", { 
-            parse_mode: "Markdown", 
-            reply_markup: { remove_keyboard: true } 
-        });
-        return;
+        bot.sendMessage(chatId, "🔗 Guruh linkini yuboring:", { parse_mode: "Markdown" });
     }
 
-    if (lowerText.includes("avto reyd")) {
-        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
+    else if (data === "menu_reyd") {
+        if (userStates[chatId]) delete userStates[chatId];
         const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
@@ -416,16 +412,16 @@ bot.on('message', async (msg) => {
         bot.sendMessage(chatId, "⚔️ **Avto Reyd**\n\nNishon turini tanlang:", {
             parse_mode: "Markdown",
             reply_markup: {
-                keyboard: [["👥 Guruh", "👤 User"], ["🔙 Bekor qilish"]],
-                resize_keyboard: true,
-                one_time_keyboard: true
+                inline_keyboard: [
+                    [{ text: "👥 Guruh", callback_data: "reyd_group" }, { text: "👤 User", callback_data: "reyd_user" }],
+                    [{ text: "🔙 Bekor qilish", callback_data: "reyd_cancel" }]
+                ]
             }
         });
-        return;
     }
 
-    if (lowerText.includes("avto reklama")) {
-        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
+    else if (data === "menu_reklama") {
+        if (userStates[chatId]) delete userStates[chatId];
         const user = await getUser(chatId);
         if (!user || user.status !== 'approved' || !userClients[chatId]) {
             bot.sendMessage(chatId, "❌ Bu funksiyadan foydalanish uchun avval ro'yxatdan o'ting va hisobingizga kiring.");
@@ -433,12 +429,11 @@ bot.on('message', async (msg) => {
         }
     
         userStates[chatId] = { step: 'WAITING_REK_USERS' };
-        bot.sendMessage(chatId, "🚀 **Avto Reklama**\n\nIltimos, reklama yuboriladigan foydalanuvchilar username-larini yuboring.\n\n_Misol:_\n@user1\n@user2\n@user3\n\n(Maksimum 100 ta username)", { parse_mode: "Markdown", reply_markup: { remove_keyboard: true } }); // Keyboardni vaqtincha olib tashlaymiz
-        return;
+        bot.sendMessage(chatId, "🚀 **Avto Reklama**\n\nIltimos, reklama yuboriladigan foydalanuvchilar username-larini yuboring.\n\n_Misol:_\n@user1\n@user2\n@user3\n\n(Maksimum 100 ta username)", { parse_mode: "Markdown" });
     }
 
-    if (lowerText.includes("profil")) {
-        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
+    else if (data === "menu_profile") {
+        if (userStates[chatId]) delete userStates[chatId];
         const user = await getUser(chatId);
         if (!user) {
             bot.sendMessage(chatId, "❌ Siz ro'yxatdan o'tmagansiz. /start ni bosing.");
@@ -452,17 +447,13 @@ bot.on('message', async (msg) => {
         message += `💎 To'plangan almazlar: **${user.clicks || 0}** ta\n`;
         message += `📅 Ro'yxatdan o'tgan sana: ${new Date(user.joinedAt).toLocaleDateString()}\n`;
         bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
-        return;
     }
 
-    if (lowerText.includes("nomer almashtirish")) {
-        if (userStates[chatId]) delete userStates[chatId]; // State ni tozalash
+    else if (data === "menu_logout") {
+        if (userStates[chatId]) delete userStates[chatId];
         const user = await getUser(chatId);
         if (user) {
-            // Sessiyani o'chirish
             await updateUser(chatId, { session: null });
-            
-            // Clientni to'xtatish
             if (userClients[chatId]) {
                 try {
                     userClients[chatId].disconnect();
@@ -470,95 +461,177 @@ bot.on('message', async (msg) => {
                     delete userClients[chatId];
                 } catch (e) { console.error("Disconnect error:", e); }
             }
-            
-            // State ni tozalash
             if (userStates[chatId]) delete userStates[chatId];
             if (loginPromises[chatId]) delete loginPromises[chatId];
 
             bot.sendMessage(chatId, "🔄 **Tizimdan chiqildi.**\n\nBoshqa raqam bilan kirish uchun /start ni bosing.", { 
                 parse_mode: "Markdown",
-                reply_markup: { remove_keyboard: true } 
+                reply_markup: { remove_keyboard: true } // Eski keyboardni o'chiramiz (agar qolgan bo'lsa)
             });
         } else {
             bot.sendMessage(chatId, "❌ Siz tizimga kirmagansiz.");
         }
-        return;
     }
 
-    if (lowerText.includes("yordam")) {
-        const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi. Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yuserlarini yig'adi va sizga yuboradi maksimal 100 ta. 🔗 Guruh linki va limitni kiriting.\n\n⚔️ **Avto Reyd**\nTanlangan nishonga (Guruh yoki User) ko'rsatilgan miqdorda xabar yuboradi. Maksimal 500 ta xabar.\n\n📢 **Avto Reklama**\nSiz botga yuborgan 100 ta yuserga reklama yuboradi. Userlar va reklama matnini kiriting.\n\n📊 **Profil**\nSizning statistikangizni ko'rsatadi.\n\n🔄 **Nomer almashtirish**\nTelefon raqamingizni o'zgartirish.";
+    else if (data === "menu_help") {
+        const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yig'adi.\n\n⚔️ **Avto Reyd**\nTanlangan nishonga xabar yuboradi.\n\n📢 **Avto Reklama**\nFoydalanuvchilarga reklama yuboradi.\n\n📊 **Profil**\nStatistika.\n\n🔄 **Nomer almashtirish**\nChiqish.";
         bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
-        return;
     }
 
-    if (text.startsWith('/')) return;
+    // --- REYD HANDLERS ---
+    else if (data === "reyd_group") {
+        userStates[chatId] = { step: 'WAITING_REYD_TARGET', type: 'group' };
+        bot.sendMessage(chatId, "👥 **Guruh Reyd**\n\nGuruh linkini yoki username-ni yuboring (masalan: @guruh yoki https://t.me/...):", { parse_mode: "Markdown" });
+    }
+    else if (data === "reyd_user") {
+        userStates[chatId] = { step: 'WAITING_REYD_TARGET', type: 'user' };
+        bot.sendMessage(chatId, "👤 **User Reyd**\n\nFoydalanuvchi username-ni yuboring (masalan: @user):", { parse_mode: "Markdown" });
+    }
+    else if (data === "reyd_cancel") {
+        delete userStates[chatId];
+        bot.sendMessage(chatId, "❌ Reyd bekor qilindi.", getMainMenu());
+    }
+
+    else if (data === "reyd_start") {
+        if (userStates[chatId]) {
+            const state = userStates[chatId];
+            bot.sendMessage(chatId, "🚀 Reyd boshlandi!", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "⏸ Pauza", callback_data: "reyd_pause" }, { text: "⏹ To'xtatish", callback_data: "reyd_stop" }]
+                    ]
+                }
+            });
+            startReyd(chatId, userClients[chatId], state.target, state.count, state.content, state.contentType, state.entities);
+            delete userStates[chatId];
+        } else {
+            bot.sendMessage(chatId, "⚠️ Sessiya topilmadi. Qaytadan boshlang.");
+        }
+    }
 
     // --- REYD CONTROL ---
-    if (reydSessions[chatId]) {
-        if (text === "⏹ To'xtatish") {
+    else if (data === "reyd_stop") {
+        if (reydSessions[chatId]) {
             reydSessions[chatId].status = 'stopped';
-            bot.sendMessage(chatId, "🛑 Reyd to'xtatildi.", { reply_markup: { remove_keyboard: true } });
-            // Session will be deleted in the loop when it sees 'stopped'
-            return;
+            bot.sendMessage(chatId, "🛑 Reyd to'xtatildi.", getMainMenu());
+            try {
+                bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId });
+            } catch(e) {}
+        } else {
+            bot.sendMessage(chatId, "⚠️ Faol reyd topilmadi.");
         }
-        if (text === "⏸ Pauza") {
+    }
+    else if (data === "reyd_pause") {
+        if (reydSessions[chatId]) {
             reydSessions[chatId].status = 'paused';
-            bot.sendMessage(chatId, "⏸ Reyd pauzada.", { 
-                reply_markup: { 
-                    keyboard: [["▶️ Davom ettirish", "⏹ To'xtatish"]],
-                    resize_keyboard: true 
-                } 
+            bot.sendMessage(chatId, "⏸ Reyd pauza qilindi. Davom ettirish uchun tugmani bosing.", {
+                reply_markup: {
+                    inline_keyboard: [[{ text: "▶️ Davom ettirish", callback_data: "reyd_resume" }]]
+                }
             });
-            return;
         }
-        if (text === "▶️ Davom ettirish") {
+    }
+    else if (data === "reyd_resume") {
+        if (reydSessions[chatId]) {
             reydSessions[chatId].status = 'active';
-            bot.sendMessage(chatId, "▶️ Reyd davom ettirilmoqda...", { 
-                reply_markup: { 
-                    keyboard: [["⏸ Pauza", "⏹ To'xtatish"]],
-                    resize_keyboard: true 
-                } 
-            });
-            return;
+            bot.sendMessage(chatId, "▶️ Reyd davom etmoqda...");
         }
     }
 
     // --- REKLAMA CONTROL ---
-    if (reklamaSessions[chatId]) {
-        if (text === "⏹ Tugatish") {
+    else if (data === "rek_cancel") {
+        delete userStates[chatId];
+        bot.sendMessage(chatId, "❌ Reklama bekor qilindi.", getMainMenu());
+    }
+
+    else if (data === "rek_start") {
+        if (userStates[chatId]) {
+            const state = userStates[chatId];
+            bot.sendMessage(chatId, "🚀 Reklama yuborish boshlandi...", { 
+                reply_markup: { 
+                    inline_keyboard: [
+                        [{ text: "⏸ Pauza", callback_data: "rek_pause" }, { text: "⏹ To'xtatish", callback_data: "rek_stop" }]
+                    ]
+                } 
+            });
+            delete userStates[chatId]; // State ni tozalaymiz, lekin jarayon davom etadi
+            
+            // Reklama sessiyasini yaratish
+            reklamaSessions[chatId] = {
+                status: 'active',
+                users: state.rekUsers,
+                content: state.rekContent,
+                contentType: state.rekContentType,
+                entities: state.rekEntities,
+                currentIndex: 0,
+                errorState: false
+            };
+            
+            startReklama(chatId, userClients[chatId], state.rekUsers, state.rekContent, state.rekContentType, state.rekEntities);
+        } else {
+             bot.sendMessage(chatId, "⚠️ Sessiya topilmadi. Qaytadan boshlang.");
+        }
+    }
+
+    else if (data === "rek_stop") {
+        if (reklamaSessions[chatId]) {
             reklamaSessions[chatId].status = 'stopped';
             
-            // Agar stiker bo'lsa va fayl mavjud bo'lsa, o'chiramiz
+            // Faylni o'chirish
             const session = reklamaSessions[chatId];
             if (session.contentType === 'sticker' && session.content) {
                 try {
-                    if (fs.existsSync(session.content)) {
-                        fs.unlinkSync(session.content);
-                    }
-                } catch (e) {
-                    console.error("Temp file delete error (manual stop):", e);
-                }
+                    if (fs.existsSync(session.content)) fs.unlinkSync(session.content);
+                } catch (e) {}
             }
-
             delete reklamaSessions[chatId];
             
-            bot.sendMessage(chatId, "🛑 Reklama to'xtatildi.", { reply_markup: { remove_keyboard: true } });
-            return;
+            bot.sendMessage(chatId, "🛑 Reklama to'xtatildi.", getMainMenu());
+            // Eski xabardagi tugmalarni o'chirish
+            try {
+                bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: messageId });
+            } catch(e) {}
         }
-        if (text === "▶️ Davom ettirish") {
+    }
+    else if (data === "rek_pause") {
+        if (reklamaSessions[chatId]) {
+            reklamaSessions[chatId].status = 'paused';
+            bot.sendMessage(chatId, "⏸ Reklama pauza qilindi. Davom ettirish uchun tugmani bosing.", {
+                reply_markup: {
+                    inline_keyboard: [[{ text: "▶️ Davom ettirish", callback_data: "rek_resume" }]]
+                }
+            });
+        }
+    }
+    else if (data === "rek_resume") {
+        if (reklamaSessions[chatId]) {
             reklamaSessions[chatId].status = 'active';
             const session = reklamaSessions[chatId];
             
-            bot.sendMessage(chatId, `▶️ Reklama davom ettirilmoqda... (Qolganlar: ${session.users.length - session.currentIndex})`, { reply_markup: { remove_keyboard: true } });
+            bot.sendMessage(chatId, `▶️ Reklama davom ettirilmoqda... (Qolganlar: ${session.users.length - session.currentIndex})`);
             
             if (session.errorState) {
-                // If it was stopped due to error/flood, restart it
                 session.errorState = false;
                 startReklama(chatId, userClients[chatId], session.users, session.content, session.contentType, session.entities, session.currentIndex);
             }
-            return;
         }
     }
+});
+
+// Xabarlarni qayta ishlash (Login jarayoni)
+bot.on('message', async (msg) => {
+    try {
+    const chatId = msg.chat.id;
+    const text = msg.text || ''; // Xavfsizlik uchun: agar text yo'q bo'lsa, bo'sh satr olamiz
+
+    // Agar text ham, stiker ham yo'q bo'lsa, chiqib ketamiz.
+    // Lekin stiker bo'lsa, uni pastda (REYD_CONTENT da) ishlatamiz.
+    if (!text && !msg.sticker) return;
+
+    // --- MENYU TUGMALARI LOGIKASI ---
+    // (O'chirildi - Inline tugmalarga o'tkazildi)
+
+    if (text.startsWith('/')) return;
 
     let state = userStates[chatId];
     if (!state) return;
@@ -617,40 +690,19 @@ bot.on('message', async (msg) => {
                  return;
             }
 
-            state.step = 'WAITING_REK_CONFIRM';
-            bot.sendMessage(chatId, `📜 **Reklama:**\n\n${state.rekContentView}\n\n👥 **Qabul qiluvchilar:** ${state.rekUsers.length} ta\n\nBoshlashni tasdiqlaysizmi? (Ha/Yo'q)`, {
+            // state.step = 'WAITING_REK_CONFIRM'; // Inline buttonda kerak emas
+            bot.sendMessage(chatId, `📜 **Reklama:**\n\n${state.rekContentView}\n\n👥 **Qabul qiluvchilar:** ${state.rekUsers.length} ta\n\nBoshlashni tasdiqlaysizmi?`, {
                 reply_markup: {
-                    keyboard: [["Ha"], ["Yo'q"]],
-                    one_time_keyboard: true,
-                    resize_keyboard: true
+                    inline_keyboard: [
+                        [{ text: "✅ Boshlash", callback_data: "rek_start" }],
+                        [{ text: "❌ Bekor qilish", callback_data: "rek_cancel" }]
+                    ]
                 }
             });
             return;
         }
 
-        if (state.step === 'WAITING_REK_CONFIRM') {
-            if (text.toLowerCase() === 'ha') {
-                bot.sendMessage(chatId, "🚀 Reklama yuborish boshlandi...", { reply_markup: { remove_keyboard: true } });
-                delete userStates[chatId]; // State ni tozalaymiz, lekin jarayon davom etadi
-                
-                // Reklama sessiyasini yaratish
-                reklamaSessions[chatId] = {
-                    status: 'active',
-                    users: state.rekUsers,
-                    content: state.rekContent,
-                    contentType: state.rekContentType,
-                    entities: state.rekEntities,
-                    currentIndex: 0,
-                    errorState: false
-                };
-
-                startReklama(chatId, userClients[chatId], state.rekUsers, state.rekContent, state.rekContentType, state.rekEntities);
-            } else {
-                delete userStates[chatId];
-                bot.sendMessage(chatId, "❌ Reklama bekor qilindi.", { reply_markup: { remove_keyboard: true } });
-            }
-            return;
-        }
+        // WAITING_REK_CONFIRM o'chirildi (Inline button orqali ishlaydi)
 
 
 
@@ -684,23 +736,8 @@ bot.on('message', async (msg) => {
         }
 
         // --- AVTO REYD LOGIKASI ---
-        if (state.step === 'WAITING_REYD_TYPE') {
-            if (text === "👥 Guruh") {
-                state.reydType = 'group';
-                state.step = 'WAITING_REYD_TARGET';
-                bot.sendMessage(chatId, "🔗 Guruh linkini yoki username-ni yuboring:", { reply_markup: { remove_keyboard: true } });
-            } else if (text === "👤 User") {
-                state.reydType = 'user';
-                state.step = 'WAITING_REYD_TARGET';
-                bot.sendMessage(chatId, "👤 Foydalanuvchi username-ni yuboring (@user):", { reply_markup: { remove_keyboard: true } });
-            } else if (text === "🔙 Bekor qilish") {
-                delete userStates[chatId];
-                bot.sendMessage(chatId, "❌ Bekor qilindi. /menu orqali qaytishingiz mumkin.", { reply_markup: { remove_keyboard: true } });
-            } else {
-                 // Noto'g'ri tugma bosilsa jim turamiz
-            }
-            return;
-        }
+        // (WAITING_REYD_TYPE endi inline button orqali ishlaydi)
+
 
         if (state.step === 'WAITING_REYD_TARGET') {
             // Agar foydalanuvchi link yuborsa, u tugma bosish deb o'ylanmasligi kerak
@@ -747,46 +784,25 @@ bot.on('message', async (msg) => {
                 state.content = text;
                 state.contentType = 'text';
                 state.contentView = text;
+                state.entities = msg.entities; // Entitiesni saqlaymiz (Premium emojilar uchun)
             } else {
                  bot.sendMessage(chatId, "⚠️ Iltimos, matn yoki stiker yuboring.");
                  return;
             }
             
-            state.step = 'WAITING_REYD_CONFIRM';
+            // state.step = 'WAITING_REYD_CONFIRM'; // Inline buttonda kerak emas
             bot.sendMessage(chatId, `⚔️ Reyd ma'lumotlari:\n\n🎯 Nishon: ${state.target}\n🔢 Soni: ${state.count}\n📝 Xabar: ${state.contentView}\n\nBoshlashni tasdiqlaysizmi?`, {
                 reply_markup: {
-                    keyboard: [["🚀 Boshlash", "🔙 Bekor qilish"]],
-                    resize_keyboard: true,
-                    one_time_keyboard: true
+                    inline_keyboard: [
+                        [{ text: "🚀 Boshlash", callback_data: "reyd_start" }],
+                        [{ text: "🔙 Bekor qilish", callback_data: "reyd_cancel" }]
+                    ]
                 }
             });
             return;
         }
 
-        if (state.step === 'WAITING_REYD_CONFIRM') {
-            if (text === "🚀 Boshlash") {
-                bot.sendMessage(chatId, "🚀 Reyd boshlandi!", { 
-                    reply_markup: { 
-                        keyboard: [["⏸ Pauza", "⏹ To'xtatish"]],
-                        resize_keyboard: true 
-                    } 
-                });
-                
-                // Stikerni bir marta yuklab olib, qayta-qayta ishlatish uchun bufferga o'qib olamiz (agar fayl bo'lsa)
-    // let fileBuffer = null;
-    // if (state.contentType === 'sticker' && fs.existsSync(state.content)) {
-    //    fileBuffer = fs.readFileSync(state.content);
-    // }
-    
-    // Asosiy o'zgarish: Fayl yo'lini (path) ham jo'natamiz, chunki uploadFile uchun kerak bo'lishi mumkin
-    startReyd(chatId, userClients[chatId], state.target, state.count, state.content, state.contentType);
-                delete userStates[chatId];
-            } else {
-                delete userStates[chatId];
-                bot.sendMessage(chatId, "❌ Bekor qilindi.", { reply_markup: { remove_keyboard: true } });
-            }
-            return;
-        }
+        // WAITING_REYD_CONFIRM o'chirildi (Inline button orqali ishlaydi)
 
         // --- LOGIN LOGIKASI ---
         // 1. Telefon raqam qabul qilish
@@ -1137,17 +1153,7 @@ async function startAvtoUser(chatId, client, link, limit) {
             resultMessage += `👥 <b>AZOLAR USERNAMELARI:</b>\n${members.join('\n')}`;
         }
 
-        const mainMenu = {
-            reply_markup: {
-                keyboard: [
-                    ["💎 Avto Almaz", "👤 AvtoUser"],
-                    ["⚔️ Avto Reyd", "📣 Avto Reklama"],
-                    ["📊 Profil", "🔄 Nomer almashtirish"],
-                    ["🧾 Yordam"]
-                ],
-                resize_keyboard: true
-            }
-        };
+        // const mainMenu = { ... } // Removed
 
         // Xabarni bo'laklab yuborish (Telegram limit 4096)
         if (resultMessage.length > 4000) {
@@ -1155,13 +1161,13 @@ async function startAvtoUser(chatId, client, link, limit) {
             for (let i = 0; i < parts.length; i++) {
                 const part = parts[i];
                 if (i === parts.length - 1) {
-                    await bot.sendMessage(chatId, part, { parse_mode: "HTML", ...mainMenu });
+                    await bot.sendMessage(chatId, part, { parse_mode: "HTML", ...getMainMenu() });
                 } else {
                     await bot.sendMessage(chatId, part, { parse_mode: "HTML" });
                 }
             }
         } else {
-            await bot.sendMessage(chatId, resultMessage, { parse_mode: "HTML", ...mainMenu });
+            await bot.sendMessage(chatId, resultMessage, { parse_mode: "HTML", ...getMainMenu() });
         }
 
     } catch (err) {
@@ -1170,11 +1176,36 @@ async function startAvtoUser(chatId, client, link, limit) {
     }
 }
 
-async function startReyd(chatId, client, target, count, content, contentType) {
+async function startReyd(chatId, client, target, count, content, contentType, entities) {
     try {
         reydSessions[chatId] = { status: 'active', count: 0, target: target };
         let sent = 0;
         let errors = 0;
+
+        // GramJS uchun entities konvertatsiya qilish (faqat text bo'lsa)
+        let messageEntities = null;
+        if (contentType === 'text' && entities && entities.length > 0) {
+            try {
+                messageEntities = entities.map(e => {
+                    if (e.type === 'bold') return new Api.MessageEntityBold({ offset: e.offset, length: e.length });
+                    if (e.type === 'italic') return new Api.MessageEntityItalic({ offset: e.offset, length: e.length });
+                    if (e.type === 'code') return new Api.MessageEntityCode({ offset: e.offset, length: e.length });
+                    if (e.type === 'pre') return new Api.MessageEntityPre({ offset: e.offset, length: e.length, language: e.language || '' });
+                    if (e.type === 'text_link') return new Api.MessageEntityTextUrl({ offset: e.offset, length: e.length, url: e.url });
+                    if (e.type === 'url') return new Api.MessageEntityUrl({ offset: e.offset, length: e.length });
+                    if (e.type === 'custom_emoji') {
+                        return new Api.MessageEntityCustomEmoji({
+                            offset: e.offset,
+                            length: e.length,
+                            documentId: BigInt(e.custom_emoji_id) 
+                        });
+                    }
+                    return null;
+                }).filter(e => e !== null);
+            } catch (err) {
+                console.error("Entity conversion error in Reyd:", err);
+            }
+        }
 
         // Targetni aniqlash va guruhga qo'shilish
         let finalTarget = target;
@@ -1262,7 +1293,10 @@ async function startReyd(chatId, client, target, count, content, contentType) {
                         ]
                     });
                 } else {
-                    await client.sendMessage(finalTarget, { message: content });
+                    await client.sendMessage(finalTarget, { 
+                        message: content,
+                        formattingEntities: messageEntities
+                    });
                 }
                 sent++;
             } catch (e) {
@@ -1292,21 +1326,9 @@ async function startReyd(chatId, client, target, count, content, contentType) {
             }
         }
 
-        const mainMenu = {
-            reply_markup: {
-                keyboard: [
-                    ["💎 Avto Almaz", "👤 AvtoUser"],
-                    ["⚔️ Avto Reyd", "📣 Avto Reklama"],
-                    ["📊 Profil", "🔄 Nomer almashtirish"],
-                    ["🧾 Yordam"]
-                ],
-                resize_keyboard: true
-            }
-        };
-
         bot.sendMessage(chatId, `🏁 **Reyd yakunlandi!**\n\n✅ Yuborildi: ${sent}\n❌ Xatolik: ${errors}`, { 
             parse_mode: "Markdown",
-            ...mainMenu
+            ...getMainMenu()
         });
 
     } catch (e) {
@@ -1403,8 +1425,9 @@ async function startReklama(chatId, client, users, content, contentType, entitie
                 
                 bot.sendMessage(chatId, `⚠️ **DIQQAT!** Telegram sizni vaqtincha spam qildi.\nReklama vaqtincha to'xtatildi.\n\nDavom ettirish yoki tugatishni tanlang:`, {
                     reply_markup: {
-                        keyboard: [["▶️ Davom ettirish", "⏹ Tugatish"]],
-                        resize_keyboard: true
+                        inline_keyboard: [
+                            [{ text: "▶️ Davom ettirish", callback_data: "rek_resume" }, { text: "⏹ Tugatish", callback_data: "rek_stop" }]
+                        ]
                     }
                 });
                 return; // Funksiyadan chiqib ketamiz, sessiya saqlanib qoladi
@@ -1431,19 +1454,7 @@ async function startReklama(chatId, client, users, content, contentType, entitie
         }
     }
     
-    const mainMenu = {
-        reply_markup: {
-            keyboard: [
-                ["💎 Avto Almaz", "👤 AvtoUser"],
-                ["⚔️ Avto Reyd", "📣 Avto Reklama"],
-                ["📊 Profil", "🔄 Nomer almashtirish"],
-                ["🧾 Yordam"]
-            ],
-            resize_keyboard: true
-        }
-    };
-    
-    bot.sendMessage(chatId, `✅ **Reklama yakunlandi!**\n\nJami: ${users.length}\nYuborildi: ${sentCount}\nO'xshamadi: ${failCount}`, { parse_mode: "Markdown", ...mainMenu });
+    bot.sendMessage(chatId, `✅ **Reklama yakunlandi!**\n\nJami: ${users.length}\nYuborildi: ${sentCount}\nO'xshamadi: ${failCount}`, { parse_mode: "Markdown", ...getMainMenu() });
 }
 
 async function startUserbot(client, chatId) {
@@ -1464,52 +1475,62 @@ async function startUserbot(client, chatId) {
                 const row = rows[i];
                 for (let j = 0; j < row.length; j++) {
                     const button = row[j];
-                    if (button.text && button.text.includes('💎')) {
-                        // FIX: O'zining menyu tugmalarini bosmasligi kerak
-                        const btnText = button.text;
-                        if (btnText.includes('Avto Almaz') || 
-                            btnText.includes('AvtoUser') ||
-                            btnText.includes('Avto Reyd') ||
-                            btnText.includes('Avto Reklama') ||
-                            btnText.includes('Profil') ||
-                            btnText.includes('Nomer almashtirish') ||
-                            btnText.includes('Yordam')) {
-                            continue;
-                        }
+                    
+                    // Button text tekshiruvi (Emoji, Olish, Клик)
+                    if (button.text) {
+                        const btnTextLower = button.text.toLowerCase();
+                        
+                        // 1. Emoji tekshiruvi
+                        const hasDiamond = btnTextLower.includes('💎');
+                        
+                        // 2. So'z tekshiruvi (Olish, Клик, Click)
+                        // Aniqroq bo'lishi uchun, faqat shu so'zlardan iborat yoki shular bilan boshlanadigan/tugaydigan bo'lsa
+                        const hasKeywords = btnTextLower.includes('olish') || 
+                                          btnTextLower.includes('клик') || 
+                                          btnTextLower.includes('click') ||
+                                          btnTextLower.includes('yig') ||
+                                          btnTextLower.includes('almaz');
 
-                        console.log(`[${chatId}] 💎 tugma topildi: ${button.text}`);
-                        try {
-                            // message.click(i, j) - qator va ustun bo'yicha bosish
-                            // Yoki shunchaki message.click(button) ishlashi mumkin, lekin gramjs da index ishonchliroq
-                            // message.click() argumenti index (flat) yoki (row, col) bo'lishi mumkin. 
-                            // GramJS docs ga ko'ra: message.click(i, j)
-                            
-                            // Ammo oddiy click(0) flat index ishlatadi.
-                            // Keling, i va j ni ishlatamiz.
-                            await message.click(i, j);
-                            console.log(`[${chatId}] ✅ Tugma bosildi!`);
-                            clicked = true;
-                            
-                            // Statistikani yangilash
-                            await updateStats(chatId);
-                            const user = await getUser(chatId);
-                            const totalClicks = user ? user.clicks : 1;
-
-                            // Guruh nomini olish
-                            let chatTitle = "Noma'lum guruh";
-                            try {
-                                const chat = await message.getChat();
-                                chatTitle = chat.title || chat.firstName || "Guruh";
-                            } catch (e) {
-                                console.error("Chat title error:", e);
+                        if (hasDiamond || hasKeywords) {
+                            // FIX: O'zining menyu tugmalarini bosmasligi kerak
+                            const btnText = button.text;
+                            if (btnText.includes('Avto Almaz') || 
+                                btnText.includes('AvtoUser') ||
+                                btnText.includes('Avto Reyd') ||
+                                btnText.includes('Avto Reklama') ||
+                                btnText.includes('Profil') ||
+                                btnText.includes('Nomer almashtirish') ||
+                                btnText.includes('Yordam')) {
+                                continue;
                             }
-                            
-                            bot.sendMessage(chatId, `💎 **${totalClicks}-almaz**\n📂 Guruh: **${chatTitle}**`, { parse_mode: "Markdown" });
-                            
-                            // Bir marta bosilgandan keyin to'xtash (bitta xabarda bir nechta almaz bo'lsa ham)
-                            break;
-                        } catch (err) {
-                            console.error("Tugmani bosishda xatolik:", err);
+
+                            console.log(`[${chatId}] 💎 Tugma topildi: ${button.text}`);
+                            try {
+                                await message.click(i, j);
+                                console.log(`[${chatId}] ✅ Tugma bosildi!`);
+                                clicked = true;
+                                
+                                // Statistikani yangilash
+                                await updateStats(chatId);
+                                const user = await getUser(chatId);
+                                const totalClicks = user ? user.clicks : 1;
+
+                                // Guruh nomini olish
+                                let chatTitle = "Noma'lum guruh";
+                                try {
+                                    const chat = await message.getChat();
+                                    chatTitle = chat.title || chat.firstName || "Guruh";
+                                } catch (e) {
+                                    console.error("Chat title error:", e);
+                                }
+                                
+                                bot.sendMessage(chatId, `💎 **${totalClicks}-almaz**\n📂 Guruh: **${chatTitle}**`, { parse_mode: "Markdown" });
+                                
+                                // Bir marta bosilgandan keyin to'xtash
+                                break;
+                            } catch (err) {
+                                console.error("Tugmani bosishda xatolik:", err);
+                            }
                         }
                     }
                 }
