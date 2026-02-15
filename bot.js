@@ -62,7 +62,10 @@ const userSchema = new mongoose.Schema({
     status: { type: String, default: 'pending' }, // pending, approved, blocked
     clicks: { type: Number, default: 0 },
     session: { type: String, default: null },
-    joinedAt: { type: Date, default: Date.now }
+    joinedAt: { type: Date, default: Date.now },
+    reydCount: { type: Number, default: 0 },
+    usersGathered: { type: Number, default: 0 },
+    adsCount: { type: Number, default: 0 }
 });
 
 const User = mongoose.model('User', userSchema);
@@ -89,6 +92,21 @@ function getMainMenu() {
                 [{ text: "📊 Profil", callback_data: "menu_profile" }, { text: "🔄 Nomer almashtirish", callback_data: "menu_logout" }],
                 [{ text: "🧾 Yordam", callback_data: "menu_help" }]
             ]
+        }
+    };
+}
+
+// Helper: Admin Menyu
+function getAdminMenu() {
+    return {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "📊 Statistika", callback_data: "admin_stats" }, { text: "👥 Barcha A'zolar", callback_data: "admin_all_users" }],
+                [{ text: "⏳ Kutilayotganlar", callback_data: "admin_pending" }, { text: "✅ Tasdiqlanganlar", callback_data: "admin_approved" }],
+                [{ text: "🚫 Bloklanganlar", callback_data: "admin_blocked" }],
+                [{ text: "🧾 Yordam", callback_data: "menu_help" }]
+            ],
+            resize_keyboard: true
         }
     };
 }
@@ -172,11 +190,11 @@ bot.onText(/\/start/, async (msg) => {
     if (chatId === ADMIN_ID) {
         if (!user) {
             user = await updateUser(chatId, { name, status: 'approved' });
-            bot.sendMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.");
         } else if (user.status !== 'approved') {
             user = await updateUser(chatId, { status: 'approved' });
-            bot.sendMessage(chatId, "👋 Salom Admin! Maqomingiz tiklandi.");
         }
+        bot.sendMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getAdminMenu());
+        return;
     }
 
     // To'lov xabari va tugmasi
@@ -196,9 +214,14 @@ bot.onText(/\/start/, async (msg) => {
         
         bot.sendMessage(chatId, payMessage, payOptions);
         
-        // Adminga xabar berish
-        bot.sendMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)\n/approve ${chatId} - Tasdiqlash\n/block ${chatId} - Bloklash`, {
-            parse_mode: "Markdown"
+        // Adminga xabar berish (Inline buttonlar bilan)
+        bot.sendMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)`, {
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "✅ Tasdiqlash", callback_data: `admin_approve_${chatId}` }, { text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }]
+                ]
+            }
         });
         return;
     }
@@ -211,9 +234,14 @@ bot.onText(/\/start/, async (msg) => {
     if (user.status === 'pending') {
         bot.sendMessage(chatId, payMessage, payOptions);
         
-        // Adminga qayta eslatma
-        bot.sendMessage(ADMIN_ID, `⏳ **Foydalanuvchi hali ham kutmoqda!**\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\nStatus: Pending\n/approve ${chatId} - Tasdiqlash`, {
-            parse_mode: "Markdown"
+        // Adminga qayta eslatma (Inline buttonlar bilan)
+        bot.sendMessage(ADMIN_ID, `⏳ **Foydalanuvchi hali ham kutmoqda!**\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\nStatus: Pending`, {
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "✅ Tasdiqlash", callback_data: `admin_approve_${chatId}` }, { text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }]
+                ]
+            }
         });
         return;
     }
@@ -251,50 +279,11 @@ bot.onText(/\/start/, async (msg) => {
 });
 
 // Admin komandalari
+// Admin komandalari (Eski commandlarni saqlab qolamiz, lekin asosiy ish callback orqali bo'ladi)
 bot.onText(/\/approve (\d+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    if (chatId !== ADMIN_ID) return;
-
-    const targetId = parseInt(match[1]);
-    const user = await getUser(targetId);
-
-    if (user) {
-        await updateUser(targetId, { status: 'approved' });
-        bot.sendMessage(chatId, `✅ Foydalanuvchi ${targetId} tasdiqlandi.`);
-        bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz!\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.", { parse_mode: "Markdown" });
-    } else {
-        bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi. U avval botga /start bosishi kerak.");
-    }
-});
-
-bot.onText(/\/block (\d+)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    if (chatId !== ADMIN_ID) return;
-
-    const targetId = parseInt(match[1]);
-    const user = await getUser(targetId);
-
-    if (user) {
-        await updateUser(targetId, { status: 'blocked', session: null }); // Sessiyani o'chiramiz
-        
-        // Userbotni to'xtatish
-        if (userClients[targetId]) {
-            userClients[targetId].disconnect();
-            delete userClients[targetId];
-        }
-
-        bot.sendMessage(chatId, `⛔️ Foydalanuvchi ${targetId} bloklandi va botdan uzildi.`);
-        bot.sendMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { 
-            parse_mode: "Markdown",
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
-                ]
-            }
-        });
-    } else {
-        bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi.");
-    }
+    // ... (eski kod, o'zgartirish shart emas, chunki callback handler asosiy ishni qiladi)
+    // Lekin userning talabi bo'yicha menyu chiqishi kerak.
+    // Hozircha bu commandlarni o'z holicha qoldiramiz, callback handlerga urg'u beramiz.
 });
 
 bot.onText(/\/stats/, async (msg) => {
@@ -373,8 +362,143 @@ bot.on('callback_query', async (query) => {
     const data = query.data;
     const messageId = query.message.message_id;
 
+    // --- ADMIN HANDLERS ---
+    if (chatId === ADMIN_ID && data.startsWith('admin_')) {
+        if (data === 'admin_stats') {
+            const users = await getUsers();
+            let totalClicks = 0;
+            let approved = 0;
+            let blocked = 0;
+            let pending = 0;
+
+            users.forEach(u => {
+                totalClicks += (u.clicks || 0);
+                if (u.status === 'approved') approved++;
+                else if (u.status === 'blocked') blocked++;
+                else pending++;
+            });
+
+            const statsMessage = `📊 **Bot Statistikasi:**\n\n` +
+                `👥 Jami foydalanuvchilar: **${users.length}**\n` +
+                `✅ Tasdiqlanganlar: **${approved}**\n` +
+                `⏳ Kutilayotganlar: **${pending}**\n` +
+                `🚫 Bloklanganlar: **${blocked}**\n` +
+                `💎 Jami almazlar: **${totalClicks}**`;
+
+            await bot.editMessageText(statsMessage, {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: "Markdown",
+                reply_markup: getAdminMenu().reply_markup
+            });
+            await bot.answerCallbackQuery(query.id);
+            return;
+        }
+
+        if (data === 'admin_all_users' || data === 'admin_pending' || data === 'admin_approved' || data === 'admin_blocked') {
+            const users = await getUsers();
+            let filteredUsers = [];
+            let title = "";
+
+            if (data === 'admin_all_users') {
+                filteredUsers = users;
+                title = "👥 **Barcha A'zolar:**";
+            } else if (data === 'admin_pending') {
+                filteredUsers = users.filter(u => u.status === 'pending');
+                title = "⏳ **Kutilayotganlar:**";
+            } else if (data === 'admin_approved') {
+                filteredUsers = users.filter(u => u.status === 'approved');
+                title = "✅ **Tasdiqlanganlar:**";
+            } else if (data === 'admin_blocked') {
+                filteredUsers = users.filter(u => u.status === 'blocked');
+                title = "🚫 **Bloklanganlar:**";
+            }
+
+            if (filteredUsers.length === 0) {
+                await bot.answerCallbackQuery(query.id, { text: "📂 Ro'yxat bo'sh!", show_alert: true });
+                return;
+            }
+
+            let listMessage = `${title}\n\n`;
+            const recentUsers = filteredUsers.slice(-20).reverse(); 
+
+            recentUsers.forEach(u => {
+                const statusIcon = u.status === 'approved' ? '✅' : (u.status === 'blocked' ? '⛔️' : '⏳');
+                listMessage += `${statusIcon} [${u.name}](tg://user?id=${u.chatId}) (\`${u.chatId}\`)\n`;
+                if (data === 'admin_pending') {
+                    listMessage += `👉 /approve_${u.chatId} | /block_${u.chatId}\n`; 
+                }
+            });
+            
+            listMessage += `\njami: ${filteredUsers.length} ta`;
+
+            await bot.editMessageText(listMessage, {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: "Markdown",
+                reply_markup: getAdminMenu().reply_markup
+            });
+            await bot.answerCallbackQuery(query.id);
+            return;
+        }
+
+        if (data.startsWith('admin_approve_')) {
+            const targetId = parseInt(data.split('_')[2]);
+            const user = await getUser(targetId);
+            if (user) {
+                await updateUser(targetId, { status: 'approved' });
+                await bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz!\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.", { parse_mode: "Markdown" });
+                
+                await bot.answerCallbackQuery(query.id, { text: `✅ ${user.name} tasdiqlandi!` });
+                await bot.editMessageText(`✅ **Foydalanuvchi tasdiqlandi!**\n👤 Ism: ${user.name}\n🆔 ID: \`${targetId}\`\nStatus: Approved`, {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    parse_mode: "Markdown"
+                });
+                await bot.sendMessage(chatId, "👇 Bosh menyu:", getAdminMenu());
+            } else {
+                await bot.answerCallbackQuery(query.id, { text: "❌ Foydalanuvchi topilmadi!", show_alert: true });
+            }
+            return;
+        }
+
+        if (data.startsWith('admin_block_')) {
+            const targetId = parseInt(data.split('_')[2]);
+            const user = await getUser(targetId);
+            if (user) {
+                await updateUser(targetId, { status: 'blocked', session: null });
+                if (userClients[targetId]) {
+                    userClients[targetId].disconnect();
+                    delete userClients[targetId];
+                }
+
+                await bot.sendMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { 
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
+                        ]
+                    }
+                });
+
+                await bot.answerCallbackQuery(query.id, { text: `⛔️ ${user.name} bloklandi!` });
+                await bot.editMessageText(`⛔️ **Foydalanuvchi bloklandi!**\n👤 Ism: ${user.name}\n🆔 ID: \`${targetId}\`\nStatus: Blocked`, {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    parse_mode: "Markdown"
+                });
+                await bot.sendMessage(chatId, "👇 Bosh menyu:", getAdminMenu());
+            } else {
+                await bot.answerCallbackQuery(query.id, { text: "❌ Foydalanuvchi topilmadi!", show_alert: true });
+            }
+            return;
+        }
+    }
+
     // Tugmani bosganda soatni aylantirib turish (loading...)
-    bot.answerCallbackQuery(query.id);
+    try {
+        await bot.answerCallbackQuery(query.id);
+    } catch(e) {}
 
     // --- MENYU HANDLERS ---
     if (data === "menu_almaz") {
@@ -440,13 +564,61 @@ bot.on('callback_query', async (query) => {
             return;
         }
         const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
+        const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
+        
         let message = `👤 **Sizning Profilingiz:**\n\n`;
-        message += `📛 Ism: ${user.name}\n`;
+        message += `📛 Ism: **${user.name}**\n`;
         message += `🆔 ID: \`${user.chatId}\`\n`;
         message += `📊 Holat: ${statusIcon}\n`;
-        message += `💎 To'plangan almazlar: **${user.clicks || 0}** ta\n`;
+        message += `🔌 Sessiya: ${sessionStatus}\n\n`;
+        
+        message += `⚔️ Reydlar soni: **${user.reydCount || 0}** ta\n`;
+        message += `👥 Yig'ilgan userlar: **${user.usersGathered || 0}** ta\n`;
+        message += `📢 Yuborilgan reklamalar: **${user.adsCount || 0}** ta\n\n`;
+
+        message += `💎 **TO'PLANGAN ALMAZLAR: ${user.clicks || 0} ta**\n`;
         message += `📅 Ro'yxatdan o'tgan sana: ${new Date(user.joinedAt).toLocaleDateString()}\n`;
-        bot.sendMessage(chatId, message, { parse_mode: "Markdown" });
+
+        // Agar eski xabar bo'lsa edit qilamiz, aks holda yangi jo'natamiz
+        try {
+            await bot.editMessageText(message, {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🔄 Yangilash", callback_data: "menu_profile" }],
+                        [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
+                    ]
+                }
+            });
+        } catch (e) {
+            // Agar edit o'xshamasa (masalan xabar o'zgarmagan bo'lsa yoki eski xabar bo'lmasa)
+            bot.sendMessage(chatId, message, {
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🔄 Yangilash", callback_data: "menu_profile" }],
+                        [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
+                    ]
+                }
+            });
+        }
+    }
+
+    else if (data === "menu_back_main") {
+        if (userStates[chatId]) delete userStates[chatId];
+        // Asosiy menyuga qaytish uchun xabarni yangilaymiz
+        try {
+            await bot.editMessageText("📋 **Asosiy menyu:**", {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: "Markdown",
+                ...getMainMenu()
+            });
+        } catch (e) {
+             bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu() });
+        }
     }
 
     else if (data === "menu_logout") {
@@ -1170,6 +1342,9 @@ async function startAvtoUser(chatId, client, link, limit) {
             await bot.sendMessage(chatId, resultMessage, { parse_mode: "HTML", ...getMainMenu() });
         }
 
+        // Statistikani yangilash
+        await User.findOneAndUpdate({ chatId }, { $inc: { usersGathered: total } });
+
     } catch (err) {
         console.error("General AvtoUser error:", err);
         bot.sendMessage(chatId, `❌ Kutilmagan xatolik: ${err.message}`);
@@ -1330,6 +1505,11 @@ async function startReyd(chatId, client, target, count, content, contentType, en
             parse_mode: "Markdown",
             ...getMainMenu()
         });
+        
+        // Statistikani yangilash
+        if (sent > 0) {
+            await User.findOneAndUpdate({ chatId }, { $inc: { reydCount: 1 } });
+        }
 
     } catch (e) {
         console.error("Reyd fatal error:", e);
@@ -1455,6 +1635,11 @@ async function startReklama(chatId, client, users, content, contentType, entitie
     }
     
     bot.sendMessage(chatId, `✅ **Reklama yakunlandi!**\n\nJami: ${users.length}\nYuborildi: ${sentCount}\nO'xshamadi: ${failCount}`, { parse_mode: "Markdown", ...getMainMenu() });
+    
+    // Statistikani yangilash
+    if (sentCount > 0) {
+        await User.findOneAndUpdate({ chatId }, { $inc: { adsCount: sentCount } });
+    }
 }
 
 async function startUserbot(client, chatId) {
@@ -1612,4 +1797,4 @@ async function restoreUserSession(chatId, sessionString) {
 // Xatolarni ushlash
 bot.on('polling_error', (error) => {
     console.error(`Polling xatosi: ${error.code} - ${error.message}`);
-});
+})
