@@ -544,15 +544,43 @@ bot.on('message', async (msg) => {
             }
 
             state.rekUsers = usernames;
-            state.step = 'WAITING_REK_TEXT';
-            bot.sendMessage(chatId, `✅ **${usernames.length} ta** foydalanuvchi qabul qilindi.\n\nEndi reklama matnini yuboring:`, { parse_mode: "Markdown" });
+            state.step = 'WAITING_REK_CONTENT';
+            bot.sendMessage(chatId, `✅ **${usernames.length} ta** foydalanuvchi qabul qilindi.\n\nEndi reklama matnini yoki stikerni yuboring:`, { parse_mode: "Markdown" });
             return;
         }
 
-        if (state.step === 'WAITING_REK_TEXT') {
-            state.rekText = text;
+        if (state.step === 'WAITING_REK_CONTENT') {
+            if (msg.sticker) {
+                // Stikerni yuklab olamiz
+                try {
+                    const fileId = msg.sticker.file_id;
+                    const tempDir = './temp';
+                    if (!fs.existsSync(tempDir)) {
+                        fs.mkdirSync(tempDir, { recursive: true });
+                    }
+                    
+                    const savedPath = await bot.downloadFile(fileId, tempDir);
+                    
+                    state.rekContent = savedPath;
+                    state.rekContentType = 'sticker';
+                    state.rekContentView = '[Stiker]';
+                } catch (e) {
+                    console.error("Stiker yuklashda xatolik:", e);
+                    bot.sendMessage(chatId, "⚠️ Stikerni yuklab olishda xatolik bo'ldi. Iltimos, boshqa stiker yoki matn yuboring.");
+                    return;
+                }
+            } else if (text) {
+                state.rekContent = text;
+                state.rekContentType = 'text';
+                state.rekContentView = text;
+                state.rekEntities = msg.entities; // Entitiesni saqlaymiz (Premium emojilar uchun)
+            } else {
+                 bot.sendMessage(chatId, "⚠️ Iltimos, matn yoki stiker yuboring.");
+                 return;
+            }
+
             state.step = 'WAITING_REK_CONFIRM';
-            bot.sendMessage(chatId, `📜 **Reklama matni:**\n\n${text}\n\n👥 **Qabul qiluvchilar:** ${state.rekUsers.length} ta\n\nBoshlashni tasdiqlaysizmi? (Ha/Yo'q)`, {
+            bot.sendMessage(chatId, `📜 **Reklama:**\n\n${state.rekContentView}\n\n👥 **Qabul qiluvchilar:** ${state.rekUsers.length} ta\n\nBoshlashni tasdiqlaysizmi? (Ha/Yo'q)`, {
                 reply_markup: {
                     keyboard: [["Ha"], ["Yo'q"]],
                     one_time_keyboard: true,
@@ -567,7 +595,7 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(chatId, "🚀 Reklama yuborish boshlandi...", { reply_markup: { remove_keyboard: true } });
                 delete userStates[chatId]; // State ni tozalaymiz, lekin jarayon davom etadi
                 
-                startReklama(chatId, userClients[chatId], state.rekUsers, state.rekText);
+                startReklama(chatId, userClients[chatId], state.rekUsers, state.rekContent, state.rekContentType, state.rekEntities);
             } else {
                 delete userStates[chatId];
                 bot.sendMessage(chatId, "❌ Reklama bekor qilindi.", { reply_markup: { remove_keyboard: true } });
@@ -1239,14 +1267,60 @@ async function startReyd(chatId, client, target, count, content, contentType) {
     }
 }
 
-async function startReklama(chatId, client, users, text) {
+async function startReklama(chatId, client, users, content, contentType, entities) {
     let sentCount = 0;
     let failCount = 0;
     
+    // GramJS uchun entities konvertatsiya qilish (faqat text bo'lsa)
+    let messageEntities = null;
+    if (contentType === 'text' && entities && entities.length > 0) {
+        try {
+             messageEntities = entities.map(e => {
+                 if (e.type === 'bold') return new Api.MessageEntityBold({ offset: e.offset, length: e.length });
+                 if (e.type === 'italic') return new Api.MessageEntityItalic({ offset: e.offset, length: e.length });
+                 if (e.type === 'code') return new Api.MessageEntityCode({ offset: e.offset, length: e.length });
+                 if (e.type === 'pre') return new Api.MessageEntityPre({ offset: e.offset, length: e.length, language: e.language || '' });
+                 if (e.type === 'text_link') return new Api.MessageEntityTextUrl({ offset: e.offset, length: e.length, url: e.url });
+                 if (e.type === 'url') return new Api.MessageEntityUrl({ offset: e.offset, length: e.length });
+                 if (e.type === 'custom_emoji') {
+                     // Custom emoji ID string bo'lishi mumkin, lekin GramJS BigInt kutadi
+                     return new Api.MessageEntityCustomEmoji({
+                         offset: e.offset,
+                         length: e.length,
+                         documentId: BigInt(e.custom_emoji_id) 
+                     });
+                 }
+                 return null;
+             }).filter(e => e !== null);
+        } catch (err) {
+            console.error("Entity conversion error:", err);
+        }
+    }
+
     for (let i = 0; i < users.length; i++) {
         const username = users[i];
         try {
-            await client.sendMessage(username, { message: text });
+            if (contentType === 'sticker') {
+                // Stikerni yuborish
+                await client.sendMessage(username, { 
+                    file: content, 
+                    forceDocument: false,
+                    attributes: [
+                        new Api.DocumentAttributeSticker({
+                            alt: '👋',
+                            stickerset: new Api.InputStickerSetEmpty()
+                        })
+                    ]
+                });
+            } else {
+                // Matnni yuborish (entities bilan)
+                // formattingEntities yoki entities ishlatamiz
+                await client.sendMessage(username, { 
+                    message: content,
+                    formattingEntities: messageEntities
+                });
+            }
+            
             sentCount++;
             console.log(`[${chatId}] Reklama yuborildi: ${username}`);
         } catch (err) {
@@ -1255,12 +1329,27 @@ async function startReklama(chatId, client, users, text) {
             
             if (err.message && (err.message.includes('PEER_FLOOD') || err.message.includes('FLOOD_WAIT') || err.message.includes('spam'))) {
                 bot.sendMessage(chatId, `⚠️ **DIQQAT!** Telegram sizni vaqtincha spam qildi.\nReklama to'xtatildi.\nYuborildi: ${sentCount}\nO'xshamadi: ${failCount}`);
+                // Agar stiker bo'lsa o'chiramiz
+                if (contentType === 'sticker') {
+                    try { if (fs.existsSync(content)) fs.unlinkSync(content); } catch (e) {}
+                }
                 return; 
             }
         }
         
         // 1 sekund kutish
         await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Agar stiker bo'lsa, vaqtinchalik faylni o'chirish
+    if (contentType === 'sticker') {
+        try {
+            if (fs.existsSync(content)) {
+                fs.unlinkSync(content);
+            }
+        } catch (e) {
+            console.error("Temp file delete error:", e);
+        }
     }
     
     const mainMenu = {
