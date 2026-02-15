@@ -75,6 +75,7 @@ const bot = new TelegramBot(token, { polling: true });
 
 // Foydalanuvchi holatlari
 const userStates = {};
+const avtoAlmazStates = {}; // Avto Almaz statusi
 const reydSessions = {}; // Reyd sessiyalari
 const reklamaSessions = {}; // Reklama sessiyalari
 // Promise-larni saqlash uchun
@@ -540,8 +541,16 @@ bot.on('callback_query', async (query) => {
         if (userStates[chatId]) delete userStates[chatId];
         const user = await getUser(chatId);
         if (user && user.session) {
-             const clicks = user.clicks || 0;
-             bot.sendMessage(chatId, `💎 **Avto Almaz**\n\n✅ **Holat:** Faol\n💎 **Jami to'plangan:** ${clicks} ta\n\nBot avtomatik ravishda guruhlardagi 💎 tugmalarini bosib almaz yig'moqda.`, { parse_mode: "Markdown" });
+             // Toggle logic
+             const isRunning = avtoAlmazStates[chatId] !== false; // Default true
+
+             if (isRunning) {
+                 avtoAlmazStates[chatId] = false;
+                 bot.sendMessage(chatId, "� **Avto Almaz to'xtatildi!**\nEndi bot almaz yig'maydi.", { parse_mode: "Markdown" });
+             } else {
+                 avtoAlmazStates[chatId] = true;
+                 bot.sendMessage(chatId, "✅ **Avto Almaz ishga tushdi!**\nBot yana almaz yig'ishni boshladi.", { parse_mode: "Markdown" });
+             }
         } else {
              bot.sendMessage(chatId, "❌ Bu bo'limga kirish uchun avval tizimga kiring (/start).");
         }
@@ -1680,51 +1689,46 @@ async function startReklama(chatId, client, users, content, contentType, entitie
 async function startUserbot(client, chatId) {
     console.log(`Userbot ${chatId} uchun ishga tushdi.`);
     
+    // Default holatda yoqilgan bo'ladi (agar undefined bo'lsa)
+    if (avtoAlmazStates[chatId] === undefined) {
+        avtoAlmazStates[chatId] = true;
+    }
+
     client.addEventHandler(async (event) => {
+        // Agar o'chirilgan bo'lsa, ishlamaydi
+        if (avtoAlmazStates[chatId] === false) return;
+
         const message = event.message;
         
         // Faqat tugmasi bor xabarlarni tekshiramiz
         if (message && message.buttons && message.buttons.length > 0) {
-            // Tugmalar orasidan 💎 borini qidiramiz
             let clicked = false;
             
-            // GramJS da buttons 2D array (qatorlar va ustunlar)
-            // Biz barcha tugmalarni tekshiramiz
             const rows = message.buttons;
             for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
                 for (let j = 0; j < row.length; j++) {
                     const button = row[j];
                     
-                    // Button text tekshiruvi (Emoji, Olish, Клик)
                     if (button.text) {
-                        const btnTextLower = button.text.toLowerCase();
+                        const btnTextLower = button.text.toLowerCase().trim();
                         
-                        // 1. Emoji tekshiruvi
-                        const hasDiamond = btnTextLower.includes('💎');
+                        // QAT'IY TEKSHIRUV: Faqat "olish" yoki "клик" bo'lishi shart
+                        // Boshqa so'zlar yoki emojilar aralashgan bo'lsa qabul qilinmaydi (foydalanuvchi talabi)
+                        // Lekin ko'pincha "💎 Olish" bo'ladi. Foydalanuvchi "tepada yozgan sozdan boshqa soz bolsaxam u bosilmasin" dedi.
+                        // Bu "faqat shu so'zlar bo'lsin" deganini anglatadi.
+                        // Agar tugmada "💎 Olish" bo'lsa, bu "olish" ga teng emas.
+                        // Agar user "button ichida... olish yoki klik sozi bolsa bossin" desa, unda contains ishlatish kerak.
+                        // LEKIN "boshqa soz bolsaxam u bosilmasin" degani "faqat shu so'z bo'lsin" degani.
+                        // Menimcha user "Olish" yoki "Клик" so'zining o'zi bo'lishini xohlayapti.
+                        // Ehtimol emoji bo'lishi mumkin. "💎 Olish" ni "olish" deb hisoblash kerakmi?
+                        // User: "faqat olish yoki клик sozi bolsa bossin".
+                        // Menimcha, user tugmadagi text faqat "olish" yoki "клик" bo'lishini nazarda tutyapti (case-insensitive).
                         
-                        // 2. So'z tekshiruvi (Olish, Клик, Click)
-                        // Aniqroq bo'lishi uchun, faqat shu so'zlardan iborat yoki shular bilan boshlanadigan/tugaydigan bo'lsa
-                        const hasKeywords = btnTextLower.includes('olish') || 
-                                          btnTextLower.includes('клик') || 
-                                          btnTextLower.includes('click') ||
-                                          btnTextLower.includes('yig') ||
-                                          btnTextLower.includes('almaz');
+                        const isExactMatch = btnTextLower === 'olish' || btnTextLower === 'клик';
 
-                        if (hasDiamond || hasKeywords) {
-                            // FIX: O'zining menyu tugmalarini bosmasligi kerak
-                            const btnText = button.text;
-                            if (btnText.includes('Avto Almaz') || 
-                                btnText.includes('AvtoUser') ||
-                                btnText.includes('Avto Reyd') ||
-                                btnText.includes('Avto Reklama') ||
-                                btnText.includes('Profil') ||
-                                btnText.includes('Nomer almashtirish') ||
-                                btnText.includes('Yordam')) {
-                                continue;
-                            }
-
-                            console.log(`[${chatId}] 💎 Tugma topildi: ${button.text}`);
+                        if (isExactMatch) {
+                            console.log(`[${chatId}] 💎 Tugma topildi (Exact): ${button.text}`);
                             try {
                                 await message.click(i, j);
                                 console.log(`[${chatId}] ✅ Tugma bosildi!`);
@@ -1735,18 +1739,8 @@ async function startUserbot(client, chatId) {
                                 const user = await getUser(chatId);
                                 const totalClicks = user ? user.clicks : 1;
 
-                                // Guruh nomini olish
-                                let chatTitle = "Noma'lum guruh";
-                                try {
-                                    const chat = await message.getChat();
-                                    chatTitle = chat.title || chat.firstName || "Guruh";
-                                } catch (e) {
-                                    console.error("Chat title error:", e);
-                                }
+                                bot.sendMessage(chatId, `💎 Avto Almaz: 1 almaz olindi\n📍 𝐍𝐞𝐱𝐭 𝐋𝐞𝐯𝐞𝐥 𝐌𝐚𝐟𝐢𝐚 🇺🇿\n\n📊 Jami: ${totalClicks} ta`, { parse_mode: "Markdown" });
                                 
-                                bot.sendMessage(chatId, `💎 **${totalClicks}-almaz**\n📂 Guruh: **${chatTitle}**`, { parse_mode: "Markdown" });
-                                
-                                // Bir marta bosilgandan keyin to'xtash
                                 break;
                             } catch (err) {
                                 console.error("Tugmani bosishda xatolik:", err);
@@ -1755,47 +1749,6 @@ async function startUserbot(client, chatId) {
                     }
                 }
                 if (clicked) break;
-            }
-            // 2. Agar tugmalarda topilmasa, matnni tekshiramiz
-            if (!clicked && message.text && message.text.includes('💎')) {
-                 const text = message.text.toLowerCase();
-                 
-                 // Filterlash: "User joined" kabi xabarlarni o'tkazib yuborish
-                 const ignoreWords = ['joined', "qo'shildi", 'kirdi', 'left', 'chiqdi', 'kick', 'ban', 'promoted', 'admin', 'asosiy menyu', 'bu bot orqali siz'];
-                 const shouldIgnore = ignoreWords.some(word => text.includes(word));
-                 
-                 // Tasdiqlash: O'yin yoki bonus ekanligini bildiruvchi so'zlar
-                 const validWords = ['olish', 'bonus', 'sovg\'a', 'yut', 'bos', 'click', 'press', 'yig'];
-                 const hasValidWord = validWords.some(word => text.includes(word));
-                 
-                 // Yoki raqam bilan kelgan bo'lsa (Masalan: "10 💎")
-                 const hasNumber = /\d/.test(text);
-
-                 if (!shouldIgnore && (hasValidWord || hasNumber)) {
-                     console.log(`[${chatId}] Matnda 💎 topildi va validatsiya o'tdi, 1-tugma bosilmoqda...`);
-                     try {
-                         await message.click(0); // Birinchi tugmani bosish
-                         console.log(`[${chatId}] ✅ Tugma bosildi (Text match)!`);
-                         
-                         // Statistikani yangilash
-                         await updateStats(chatId);
-                         const user = await getUser(chatId);
-                         const totalClicks = user ? user.clicks : 1;
-    
-                         let chatTitle = "Noma'lum guruh";
-                         try {
-                             const chat = await message.getChat();
-                             chatTitle = chat.title || chat.firstName || "Guruh";
-                         } catch (e) { console.error("Chat title error:", e); }
-                         
-                         bot.sendMessage(chatId, `💎 **${totalClicks}-almaz**\n📂 Guruh: **${chatTitle}**`, { parse_mode: "Markdown" });
-    
-                     } catch (err) {
-                         console.error("Text match click error:", err);
-                     }
-                 } else {
-                     console.log(`[${chatId}] 💎 bor, lekin bu 'User Joined' yoki boshqa xabar deb topildi.`);
-                 }
             }
         }
     }, new NewMessage({}));
