@@ -1594,9 +1594,31 @@ async function startReyd(chatId, client, target, count, content, contentType, en
             } catch (e) {
                 console.error(`Reyd error (${i}):`, e);
                 errors++;
-                // If critical error (like peer flood), maybe stop?
-                if (e.message && (e.message.includes('FLOOD_WAIT') || e.message.includes('PEER_FLOOD'))) {
-                    bot.sendMessage(chatId, `⚠️ Telegram cheklovi (Flood Wait). Reyd to'xtatildi.`);
+                
+                // FloodWait xatoligini avtomatik hal qilish
+                if (e.seconds) {
+                    const waitTime = e.seconds;
+                    bot.sendMessage(chatId, `⚠️ Telegram cheklovi (FloodWait): ${waitTime} sekund kuting...`);
+                    // Kutish vaqti
+                    await new Promise(resolve => setTimeout(resolve, (waitTime + 2) * 1000));
+                    // Xabarni qayta yuborish uchun i ni bittaga kamaytiramiz
+                    i--;
+                    continue;
+                }
+
+                // Agar boshqa turdagi FloodWait bo'lsa (message string orqali)
+                if (e.message && e.message.includes('FLOOD_WAIT')) {
+                     // Raqamni ajratib olishga harakat qilamiz
+                     const match = e.message.match(/\d+/);
+                     const waitTime = match ? parseInt(match[0]) : 60;
+                     bot.sendMessage(chatId, `⚠️ Telegram cheklovi (FloodWait): ${waitTime} sekund kuting...`);
+                     await new Promise(resolve => setTimeout(resolve, (waitTime + 2) * 1000));
+                     i--;
+                     continue;
+                }
+
+                if (e.message && e.message.includes('PEER_FLOOD')) {
+                    bot.sendMessage(chatId, `⚠️ Telegram cheklovi (Spam/Peer Flood). Reyd to'xtatildi.`);
                     break;
                 }
             }
