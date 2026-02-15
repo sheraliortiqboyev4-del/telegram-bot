@@ -83,14 +83,19 @@ const loginPromises = {};
 const userClients = {};
 
 // Helper: Asosiy menyu (Inline)
-function getMainMenu() {
+function getMainMenu(chatId) {
+    const isAdmin = chatId && ADMIN_ID && chatId.toString() === ADMIN_ID.toString();
+    const lastRow = isAdmin 
+        ? [{ text: "👨‍💻 Admin Panel", callback_data: "admin_panel" }]
+        : [{ text: "🧾 Yordam", callback_data: "menu_help" }];
+
     return {
         reply_markup: {
             inline_keyboard: [
                 [{ text: "💎 Avto Almaz", callback_data: "menu_almaz" }, { text: "👤 AvtoUser", callback_data: "menu_avtouser" }],
                 [{ text: "⚔️ Avto Reyd", callback_data: "menu_reyd" }, { text: "📣 Avto Reklama", callback_data: "menu_reklama" }],
                 [{ text: "📊 Profil", callback_data: "menu_profile" }, { text: "🔄 Nomer almashtirish", callback_data: "menu_logout" }],
-                [{ text: "🧾 Yordam", callback_data: "menu_help" }]
+                lastRow
             ]
         }
     };
@@ -104,7 +109,7 @@ function getAdminMenu() {
                 [{ text: "📊 Statistika", callback_data: "admin_stats" }, { text: "👥 Barcha A'zolar", callback_data: "admin_all_users" }],
                 [{ text: "⏳ Kutilayotganlar", callback_data: "admin_pending" }, { text: "✅ Tasdiqlanganlar", callback_data: "admin_approved" }],
                 [{ text: "🚫 Bloklanganlar", callback_data: "admin_blocked" }],
-                [{ text: "🧾 Yordam", callback_data: "menu_help" }]
+                [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
             ],
             resize_keyboard: true
         }
@@ -193,7 +198,7 @@ bot.onText(/\/start/, async (msg) => {
         } else if (user.status !== 'approved') {
             user = await updateUser(chatId, { status: 'approved' });
         }
-        bot.sendMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getAdminMenu());
+        bot.sendMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
         return;
     }
 
@@ -254,7 +259,7 @@ bot.onText(/\/start/, async (msg) => {
 
              bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
                  parse_mode: "Markdown",
-                 ...getMainMenu()
+                 ...getMainMenu(chatId)
              });
              
              // Userbotni qayta yuklash (agar o'chib qolgan bo'lsa)
@@ -334,8 +339,14 @@ bot.onText(/\/menu/, async (msg) => {
     const chatId = msg.chat.id;
     const user = await getUser(chatId);
 
+    // Admin uchun
+    if (chatId === ADMIN_ID) {
+        bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu(chatId) });
+        return;
+    }
+
     if (user && user.session && user.status === 'approved') {
-        bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu() });
+        bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu(chatId) });
     } else {
         bot.sendMessage(chatId, "❌ Menyuni ochish uchun avval tizimga kiring (/start).");
     }
@@ -363,6 +374,30 @@ bot.on('callback_query', async (query) => {
     const messageId = query.message.message_id;
 
     // --- ADMIN HANDLERS ---
+    if (chatId === ADMIN_ID) {
+        if (data === 'admin_panel') {
+            await bot.editMessageText("👨‍💻 **Admin Panel**\n\nQuyidagi bo'limlardan birini tanlang:", {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: "Markdown",
+                reply_markup: getAdminMenu().reply_markup
+            });
+            await bot.answerCallbackQuery(query.id);
+            return;
+        }
+
+        if (data === 'menu_back_main') {
+            await bot.editMessageText("📋 **Asosiy menyu:**", {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: "Markdown",
+                reply_markup: getMainMenu(chatId).reply_markup
+            });
+            await bot.answerCallbackQuery(query.id);
+            return;
+        }
+    }
+
     if (chatId === ADMIN_ID && data.startsWith('admin_')) {
         if (data === 'admin_stats') {
             const users = await getUsers();
