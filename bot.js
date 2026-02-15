@@ -406,9 +406,18 @@ bot.on('callback_query', async (query) => {
             let approved = 0;
             let blocked = 0;
             let pending = 0;
+            
+            // Qo'shimcha statistika
+            let totalReyds = 0;
+            let totalUsersGathered = 0;
+            let totalAdsSent = 0;
 
             users.forEach(u => {
                 totalClicks += (u.clicks || 0);
+                totalReyds += (u.reydCount || 0);
+                totalUsersGathered += (u.usersGathered || 0);
+                totalAdsSent += (u.adsCount || 0);
+
                 if (u.status === 'approved') approved++;
                 else if (u.status === 'blocked') blocked++;
                 else pending++;
@@ -418,14 +427,22 @@ bot.on('callback_query', async (query) => {
                 `👥 Jami foydalanuvchilar: **${users.length}**\n` +
                 `✅ Tasdiqlanganlar: **${approved}**\n` +
                 `⏳ Kutilayotganlar: **${pending}**\n` +
-                `🚫 Bloklanganlar: **${blocked}**\n` +
-                `💎 Jami almazlar: **${totalClicks}**`;
+                `🚫 Bloklanganlar: **${blocked}**\n\n` +
+                `💎 Jami almazlar: **${totalClicks}** ta\n` +
+                `⚔️ Jami reydlar: **${totalReyds}** ta\n` +
+                `👥 Jami yig'ilgan userlar: **${totalUsersGathered}** ta\n` +
+                `📢 Jami yuborilgan reklamalar: **${totalAdsSent}** ta`;
 
             await bot.editMessageText(statsMessage, {
                 chat_id: chatId,
                 message_id: messageId,
                 parse_mode: "Markdown",
-                reply_markup: getAdminMenu().reply_markup
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🔄 Yangilash", callback_data: "admin_stats" }],
+                        [{ text: "🔙 Orqaga", callback_data: "admin_panel" }]
+                    ]
+                }
             });
             await bot.answerCallbackQuery(query.id);
             return;
@@ -610,18 +627,18 @@ bot.on('callback_query', async (query) => {
         const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
         const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
         
-        let message = `👤 **Sizning Profilingiz:**\n\n`;
-        message += `📛 Ism: **${user.name}**\n`;
+        let message = `👤 Sizning Profilingiz:\n\n`;
+        message += `📛 Ism: ${user.name}\n`;
         message += `🆔 ID: \`${user.chatId}\`\n`;
         message += `📊 Holat: ${statusIcon}\n`;
         message += `🔌 Sessiya: ${sessionStatus}\n\n`;
         
-        message += `⚔️ Reydlar soni: **${user.reydCount || 0}** ta\n`;
-        message += `👥 Yig'ilgan userlar: **${user.usersGathered || 0}** ta\n`;
-        message += `📢 Yuborilgan reklamalar: **${user.adsCount || 0}** ta\n\n`;
+        message += `⚔️ Reydlar soni: ${user.reydCount || 0} ta\n`;
+        message += `👥 Yig'ilgan userlar: ${user.usersGathered || 0} ta\n`;
+        message += `📢 Yuborilgan reklamalar: ${user.adsCount || 0} ta\n`;
+        message += `💎 To'plangan almazlar: ${user.clicks || 0} ta\n\n`;
 
-        message += `💎 **TO'PLANGAN ALMAZLAR: ${user.clicks || 0} ta**\n`;
-        message += `📅 Ro'yxatdan o'tgan sana: ${new Date(user.joinedAt).toLocaleDateString()}\n`;
+        message += `📅 Ro'yxatdan o'tgan sana: ${new Date(user.joinedAt).toLocaleDateString()}`;
 
         // Agar eski xabar bo'lsa edit qilamiz, aks holda yangi jo'natamiz
         try {
