@@ -1669,38 +1669,45 @@ async function startAvtoUser(chatId, client, link, limit) {
             return;
         }
 
-        // 3. NATIJANI YUBORISH (TEXT)
+        // 3. NATIJANI YUBORISH (ALOHIDA XABARLARDA)
         const total = admins.length + members.length;
         
-        let resultMessage = `📊 NATIJA:\n\n`;
-        resultMessage += `👑 Adminlar: ${admins.length} ta\n`;
-        resultMessage += `👥 Azolar: ${members.length} ta\n`;
-        resultMessage += `📦 Jami: ${total} ta\n\n`;
+        // 1. Summary Message
+        const summaryMessage = `� NATIJA:\n\n�👑 Adminlar: ${admins.length} ta\n👥 Azolar: ${members.length} ta\n📦 Jami: ${total} ta`;
+        await bot.sendMessage(chatId, summaryMessage, { parse_mode: "HTML" });
 
+        // Helper: Ro'yxatni bo'laklab yuborish
+        const sendListMessage = async (header, items) => {
+             const MAX_LENGTH = 4000;
+             let currentMessage = header + "\n\n";
+             
+             for (const item of items) {
+                 // Agar xabar limiti oshsa, yuboramiz va yangisini boshlaymiz
+                 if (currentMessage.length + item.length + 1 > MAX_LENGTH) {
+                     await bot.sendMessage(chatId, currentMessage, { parse_mode: "HTML" });
+                     currentMessage = header + " (davomi)...\n\n" + item;
+                 } else {
+                     currentMessage += "\n" + item;
+                 }
+             }
+             // Qolgan qismini yuborish
+             if (currentMessage !== header + "\n\n") {
+                 await bot.sendMessage(chatId, currentMessage, { parse_mode: "HTML" });
+             }
+        };
+
+        // 2. Adminlar Message
         if (admins.length > 0) {
-            resultMessage += `👑 <b>ADMINLAR USERNAMELARI:</b>\n${admins.join('\n')}\n\n`;
+            await sendListMessage(`👑 <b>ADMINLAR USERNAMELARI:</b>`, admins);
         }
 
+        // 3. Azolar Message
         if (members.length > 0) {
-            resultMessage += `👥 <b>AZOLAR USERNAMELARI:</b>\n${members.join('\n')}`;
+            await sendListMessage(`👥 <b>AZOLAR USERNAMELARI:</b>`, members);
         }
 
-        // const mainMenu = { ... } // Removed
-
-        // Xabarni bo'laklab yuborish (Telegram limit 4096)
-        if (resultMessage.length > 4000) {
-            const parts = resultMessage.match(/[\s\S]{1,4000}/g) || [];
-            for (let i = 0; i < parts.length; i++) {
-                const part = parts[i];
-                if (i === parts.length - 1) {
-                    await bot.sendMessage(chatId, part, { parse_mode: "HTML", ...getMainMenu() });
-                } else {
-                    await bot.sendMessage(chatId, part, { parse_mode: "HTML" });
-                }
-            }
-        } else {
-            await bot.sendMessage(chatId, resultMessage, { parse_mode: "HTML", ...getMainMenu() });
-        }
+        // 4. Tugadi Message
+        await bot.sendMessage(chatId, "✅ Tugadi", { parse_mode: "HTML", ...getMainMenu(chatId) });
 
         // Statistikani yangilash
         await User.findOneAndUpdate({ chatId }, { $inc: { usersGathered: total } });
