@@ -1522,41 +1522,88 @@ async function startAvtoUser(chatId, client, link, limit) {
                 // console.log("Recent failed:", e.message);
             }
 
-            // 2. History Scan (Chuqur qidiruv)
-            // Agar Recent yetarli bo'lmasa, Tarixni skaner qilamiz
+            // 1.5 Search Participants (Qo'shimcha - Agar Recent kam bo'lsa)
             if (members.length < limit) {
-                try {
-                    // 3000 ta xabar tarixini skaner qilamiz
-                    const historyLimit = 3000;
-                    
-                    for await (const message of client.iterMessages(entity, { limit: historyLimit })) {
-                        if (members.length >= limit) break;
-                        
-                        // message.sender odatda iterMessages da keladi (agar cache da bo'lsa)
-                        let user = message.sender;
+                 try {
+                    // Empty query - ko'pincha online yoki random userlarni qaytaradi
+                    const searchResult = await client.invoke(new Api.channels.GetParticipants({
+                        channel: entity,
+                        filter: new Api.ChannelParticipantsSearch({ q: '' }),
+                        offset: 0,
+                        limit: limit,
+                        hash: 0
+                    }));
 
-                        // Agar sender bo'lmasa, ID orqali olishga harakat qilamiz (kamdan-kam holat)
-                        if (!user && message.fromId && message.fromId.userId) {
-                            try {
-                                const result = await client.invoke(new Api.users.GetUsers({
-                                    id: [message.fromId]
-                                }));
-                                if (result && result.length > 0) user = result[0];
-                            } catch (err) {
-                                // Ignore fetch error
-                            }
-                        }
-
-                        if (user && user.className === 'User') {
-                            if (user.deleted || user.bot || user.isSelf) continue;
-                            if (!user.username) continue;
+                    if (searchResult && searchResult.users) {
+                        searchResult.users.forEach(user => {
+                            if (members.length >= limit) return;
+                            if (user.deleted || user.bot || user.isSelf) return;
+                            if (!user.username) return;
 
                             if (!uniqueUsernames.has(user.username)) {
                                 uniqueUsernames.add(user.username);
                                 members.push(`@${user.username}`);
                             }
+                        });
+                    }
+                } catch (e) {
+                    // console.log("Search failed:", e.message);
+                }
+            }
+
+            // 2. History Scan (Chuqur qidiruv - Batch Mode)
+            // Agar Recent va Search yetarli bo'lmasa, Tarixni skaner qilamiz
+            if (members.length < limit) {
+                try {
+                    const historyLimit = 3000; // 3000 ta xabar
+                    const userIdsToFetch = new Set();
+                    
+                    // Xabarlarni aylanamiz
+                    for await (const message of client.iterMessages(entity, { limit: historyLimit })) {
+                        if (members.length >= limit && userIdsToFetch.size === 0) break;
+                        
+                        let user = message.sender;
+
+                        if (user && user.className === 'User') {
+                            if (user.deleted || user.bot || user.isSelf) continue;
+                            if (user.username && !uniqueUsernames.has(user.username)) {
+                                uniqueUsernames.add(user.username);
+                                members.push(`@${user.username}`);
+                            }
+                        } else if (message.fromId && message.fromId.userId) {
+                             // User keshda yo'q, ID ni saqlab olamiz (keyin batch request qilamiz)
+                             userIdsToFetch.add(message.fromId.userId);
                         }
                     }
+
+                    // Batch fetch users (ID lar orqali yig'ilganlarni olish)
+                    // Bu usul har bir user uchun alohida so'rov yuborishdan ko'ra 100 barobar tezroq
+                    if (members.length < limit && userIdsToFetch.size > 0) {
+                        const allIds = Array.from(userIdsToFetch);
+                        // 100 tadan bo'lib yuboramiz (Telegram API limiti)
+                        for (let i = 0; i < allIds.length; i += 100) {
+                             if (members.length >= limit) break;
+                             
+                             const batch = allIds.slice(i, i + 100);
+                             try {
+                                 const result = await client.invoke(new Api.users.GetUsers({
+                                     id: batch
+                                 }));
+                                 
+                                 result.forEach(user => {
+                                     if (members.length >= limit) return;
+                                     if (user.deleted || user.bot || user.isSelf) return;
+                                     if (user.username && !uniqueUsernames.has(user.username)) {
+                                         uniqueUsernames.add(user.username);
+                                         members.push(`@${user.username}`);
+                                     }
+                                 });
+                             } catch (e) {
+                                 console.log("Batch fetch error:", e.message);
+                             }
+                        }
+                    }
+
                 } catch (e) {
                     console.log("History scan failed:", e.message);
                 }
