@@ -318,14 +318,21 @@ bot.onText(/\/block[ _](\d+)/, async (msg, match) => {
             }
         }
 
-        await bot.sendMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { 
-            parse_mode: "Markdown",
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
-                ]
-            }
-        });
+        try {
+            // Markdown belgilarni olib tashlaymiz
+            const safeName = user.name ? user.name.replace(/[*_`\[\]()]/g, '') : "Foydalanuvchi";
+            
+            await bot.sendMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { 
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
+                    ]
+                }
+            });
+        } catch (e) {
+            console.error(`Could not send block message to user ${targetId}:`, e.message);
+        }
         
         await bot.sendMessage(chatId, `⛔️ ${user.name} bloklandi!`);
     } else {
