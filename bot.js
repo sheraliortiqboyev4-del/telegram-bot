@@ -684,18 +684,53 @@ bot.on('callback_query', async (query) => {
         if (userStates[chatId]) delete userStates[chatId];
         const user = await getUser(chatId);
         if (user && user.session) {
-             // Toggle logic
-             const isRunning = avtoAlmazStates[chatId] !== false; // Default true
-
-             if (isRunning) {
-                 avtoAlmazStates[chatId] = false;
-                 bot.sendMessage(chatId, "� **Avto Almaz to'xtatildi!**\nEndi bot almaz yig'maydi.", { parse_mode: "Markdown" });
-             } else {
+             // Statusni tekshirish (default: true)
+             if (avtoAlmazStates[chatId] === undefined) {
                  avtoAlmazStates[chatId] = true;
-                 bot.sendMessage(chatId, "✅ **Avto Almaz ishga tushdi!**\nBot yana almaz yig'ishni boshladi.", { parse_mode: "Markdown" });
              }
+             const isActive = avtoAlmazStates[chatId];
+             const statusText = isActive ? "✅ Yoqilgan" : "🔴 O'chirilgan";
+             const btnText = isActive ? "🔴 O'chirish" : "✅ Yoqish";
+
+             bot.sendMessage(chatId, `💎 **Avto Almaz**\n\nBot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\nHolati: ${statusText}`, { 
+                 parse_mode: "Markdown",
+                 reply_markup: {
+                     inline_keyboard: [
+                         [{ text: btnText, callback_data: "almaz_toggle" }],
+                         [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
+                     ]
+                 }
+             });
         } else {
              bot.sendMessage(chatId, "❌ Bu bo'limga kirish uchun avval tizimga kiring (/start).");
+        }
+    }
+
+    else if (data === "almaz_toggle") {
+        if (avtoAlmazStates[chatId] === undefined) {
+            avtoAlmazStates[chatId] = true;
+        }
+        avtoAlmazStates[chatId] = !avtoAlmazStates[chatId];
+        
+        const isActive = avtoAlmazStates[chatId];
+        const statusText = isActive ? "✅ Yoqilgan" : "🔴 O'chirilgan";
+        const btnText = isActive ? "🔴 O'chirish" : "✅ Yoqish";
+        
+        try {
+            await bot.editMessageText(`💎 **Avto Almaz**\n\nBot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\nHolati: ${statusText}`, {
+                chat_id: chatId,
+                message_id: messageId,
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: btnText, callback_data: "almaz_toggle" }],
+                        [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
+                    ]
+                }
+            });
+            await bot.answerCallbackQuery(query.id, { text: `Avto Almaz ${isActive ? "yoqildi" : "o'chirildi"}!` });
+        } catch (e) {
+            await bot.sendMessage(chatId, `Avto Almaz ${isActive ? "yoqildi" : "o'chirildi"}!`);
         }
     }
 
@@ -1139,7 +1174,7 @@ bot.on('message', async (msg) => {
         if (state.step === 'WAITING_AVTOUSER_LIMIT') {
             let limit = parseInt(text.replace(/\D/g, ''));
             if (isNaN(limit) || limit <= 0) limit = 100;
-            if (limit > 2000) limit = 2000;
+            if (limit > 10000) limit = 10000;
 
             bot.sendMessage(chatId, `⏳ **Jarayon boshlandi...**\n\n🔗 Guruh: ${state.targetLink}\n👥 Limit: ${limit}\n\nIltimos kuting, bu biroz vaqt olishi mumkin.`, { parse_mode: "Markdown" });
 
@@ -1459,7 +1494,8 @@ async function startAvtoUser(chatId, client, link, limit) {
 
         if (!entity) {
             // Agar entity null bo'lsa (masalan already participant bo'lib, entity resolve bo'lmasa)
-            bot.sendMessage(chatId, "❌ Guruh ma'lumotlarini aniqlab bo'lmadi.\n\nSabablar:\n1. Bot guruhga a'zo, lekin guruhni ro'yxatdan topa olmadi (Guruh nomi o'zgargan bo'lishi mumkin).\n2. Link yaroqsiz yoki muddati tugagan.\n\nIltimos, guruh nomini tekshiring yoki yangi link yuboring.");
+            // Biz getDialogs orqali qidirib ko'rishimiz mumkin, lekin bu og'ir operatsiya.
+            bot.sendMessage(chatId, "❌ Guruh ma'lumotlarini aniqlab bo'lmadi. Iltimos, linkni tekshiring.");
             return;
         }
 
@@ -1542,59 +1578,29 @@ async function startAvtoUser(chatId, client, link, limit) {
                 // console.log("Recent failed:", e.message);
             }
 
-            // 1.5 Search Participants (Qo'shimcha - Agar Recent kam bo'lsa)
-            if (members.length < limit) {
-                 try {
-                    // Empty query - ko'pincha online yoki random userlarni qaytaradi
-                    const searchResult = await client.invoke(new Api.channels.GetParticipants({
-                        channel: entity,
-                        filter: new Api.ChannelParticipantsSearch({ q: '' }),
-                        offset: 0,
-                        limit: limit,
-                        hash: 0
-                    }));
-
-                    if (searchResult && searchResult.users) {
-                        searchResult.users.forEach(user => {
-                            if (members.length >= limit) return;
-                            if (user.deleted || user.bot || user.isSelf) return;
-                            if (!user.username) return;
-
-                            if (!uniqueUsernames.has(user.username)) {
-                                uniqueUsernames.add(user.username);
-                                members.push(`@${user.username}`);
-                            }
-                        });
-                    }
-                } catch (e) {
-                    // console.log("Search failed:", e.message);
-                }
-            }
-
-            // 2. History Scan (Chuqur qidiruv - Streaming Batch Mode)
-            // Agar Recent va Search yetarli bo'lmasa, Tarixni skaner qilamiz
+            // 2. Search Participants (Alphabetical Scan - "100% Gathering")
             if (members.length < limit) {
                 try {
-                    console.log(`Starting Deep History Scan (Target: ${limit} members)...`);
-                    await sendSafeMessage(chatId, `⚠️ Guruh a'zolari yashirilgan yoki kam. Tarixni skanerlash boshlandi... (Maqsad: ${limit} ta)`);
+                    console.log("Starting Alphabetical Scan...");
+                    // Latin, Cyrillic, Numbers for maximum coverage
+                    const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
+                    const cyrillic = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'.split('');
+                    const numbers = '0123456789'.split('');
+                    const allQueries = [...alphabet, ...cyrillic, ...numbers];
                     
-                    const historyMax = 15000; // 15k xabargacha ko'rish
-                    let messagesScanned = 0;
-                    let pendingIds = new Set();
-                    
-                    // Helper to fetch and process users
-                    const processPendingIds = async () => {
-                        if (pendingIds.size === 0) return;
-                        
+                    for (const char of allQueries) {
+                        if (members.length >= limit) break;
                         try {
-                            const batch = Array.from(pendingIds);
-                            // Telegram API limit: 100 users per request
-                            for (let i = 0; i < batch.length; i += 100) {
-                                if (members.length >= limit) break;
-                                const chunk = batch.slice(i, i + 100);
-                                const result = await client.invoke(new Api.users.GetUsers({ id: chunk }));
-                                
-                                result.forEach(user => {
+                             const searchResult = await client.invoke(new Api.channels.GetParticipants({
+                                channel: entity,
+                                filter: new Api.ChannelParticipantsSearch({ q: char }),
+                                offset: 0,
+                                limit: 100, // Search limit per char
+                                hash: 0
+                            }));
+
+                            if (searchResult && searchResult.users) {
+                                searchResult.users.forEach(user => {
                                     if (members.length >= limit) return;
                                     if (user.deleted || user.bot || user.isSelf) return;
                                     if (user.username && !uniqueUsernames.has(user.username)) {
@@ -1603,53 +1609,91 @@ async function startAvtoUser(chatId, client, link, limit) {
                                     }
                                 });
                             }
+                            // Kichik pauza (FloodWait oldini olish)
+                            await new Promise(r => setTimeout(r, 200));
                         } catch (e) {
-                            console.log("Batch fetch error:", e.message);
+                            // Ignore search errors
                         }
-                        pendingIds.clear();
+                    }
+                } catch (e) {
+                    console.log("Alphabet scan failed:", e.message);
+                }
+            }
+
+            // 3. History Scan (Chuqur qidiruv - Optimized Parallel Batch Mode)
+            if (members.length < limit) {
+                try {
+                    console.log(`Starting Deep History Scan (Target: ${limit} members)...`);
+                    await bot.sendMessage(chatId, `⚠️ Guruh a'zolari yashirilgan yoki kam. Tarixni skanerlash boshlandi... (Maqsad: ${limit} ta)`);
+                    
+                    const historyMax = 10000; // 10k xabargacha ko'rish
+                    let pendingIds = new Set();
+                    const processingPromises = [];
+
+                    // Helper: Batchni process qilish
+                    const processBatch = async (batchIds) => {
+                        if (batchIds.length === 0) return;
+                        try {
+                            const chunks = [];
+                            for (let i = 0; i < batchIds.length; i += 100) chunks.push(batchIds.slice(i, i + 100));
+                            
+                            for (const chunk of chunks) {
+                                if (members.length >= limit) return;
+                                try {
+                                    const result = await client.invoke(new Api.users.GetUsers({ id: chunk }));
+                                    result.forEach(user => {
+                                        if (members.length >= limit) return;
+                                        if (user.deleted || user.bot || user.isSelf) return;
+                                        if (user.username && !uniqueUsernames.has(user.username)) {
+                                            uniqueUsernames.add(user.username);
+                                            members.push(`@${user.username}`);
+                                        }
+                                    });
+                                } catch (e) {}
+                            }
+                        } catch (e) {}
                     };
 
                     for await (const message of client.iterMessages(entity, { limit: historyMax })) {
-                        messagesScanned++;
+                        if (members.length >= limit) break;
                         
-                        // 1. Sender ID
                         let userId = null;
                         if (message.fromId) {
-                            if (message.fromId.userId) {
-                                userId = message.fromId.userId;
-                            } else if (message.fromId.className === 'PeerUser') {
-                                userId = message.fromId.userId;
-                            }
+                            if (message.fromId.userId) userId = message.fromId.userId;
+                            else if (message.fromId.className === 'PeerUser') userId = message.fromId.userId;
                         }
+                        
                         if (userId) pendingIds.add(userId);
-
-                        // 2. Service Messages (Joined, Added) - Bu juda muhim!
+                        
+                        // Service messages
                         if (message.action) {
-                            if (message.action.className === 'MessageActionChatAddUser') {
-                                if (message.action.users) {
-                                    message.action.users.forEach(id => pendingIds.add(id));
-                                }
-                            } else if (message.action.className === 'MessageActionChatJoinedByLink') {
-                                if (userId) pendingIds.add(userId);
-                                else if (message.action.inviterId) pendingIds.add(message.action.inviterId);
-                            }
+                             if (message.action.className === 'MessageActionChatAddUser' && message.action.users) {
+                                 message.action.users.forEach(id => pendingIds.add(id));
+                             } else if (message.action.className === 'MessageActionChatJoinedByLink') {
+                                 if (userId) pendingIds.add(userId);
+                                 else if (message.action.inviterId) pendingIds.add(message.action.inviterId);
+                             }
                         }
 
-                        // Process every 100 pending IDs or every 200 messages
-                        if (pendingIds.size >= 100 || messagesScanned % 200 === 0) {
-                             await processPendingIds();
-                             if (members.length >= limit) break;
-                             // console.log(`Scanned ${messagesScanned} messages. Found ${members.length} users so far.`);
+                        if (pendingIds.size >= 100) {
+                            const batch = Array.from(pendingIds);
+                            pendingIds.clear();
+                            const p = processBatch(batch);
+                            processingPromises.push(p);
+                            if (processingPromises.length > 20) {
+                                await Promise.all(processingPromises);
+                                processingPromises.length = 0;
+                            }
                         }
                     }
                     
-                    // Final flush
-                    await processPendingIds();
-                    console.log(`History Scan Finished. Total members found: ${members.length}`);
+                    if (pendingIds.size > 0) {
+                         processingPromises.push(processBatch(Array.from(pendingIds)));
+                    }
+                    await Promise.all(processingPromises);
 
                 } catch (e) {
                     console.log("History scan failed:", e.message);
-                    await sendSafeMessage(chatId, `⚠️ Tarixni skanerlashda xatolik: ${e.message}`);
                 }
             }
         } catch (e) {
@@ -2021,16 +2065,16 @@ async function startReklama(chatId, client, users, content, contentType, entitie
 async function startUserbot(client, chatId) {
     console.log(`Userbot ${chatId} uchun ishga tushdi.`);
     
-    // Default holatda yoqilgan bo'ladi (agar undefined bo'lsa)
+    // Default holat: Yoqilgan
     if (avtoAlmazStates[chatId] === undefined) {
         avtoAlmazStates[chatId] = true;
     }
 
     client.addEventHandler(async (event) => {
-        // Agar o'chirilgan bo'lsa, ishlamaydi
-        if (avtoAlmazStates[chatId] === false) return;
-
         const message = event.message;
+
+        // Agar funksiya o'chirilgan bo'lsa, ishlamaydi
+        if (avtoAlmazStates[chatId] === false) return;
         
         // Faqat tugmasi bor xabarlarni tekshiramiz
         if (message && message.buttons && message.buttons.length > 0) {
@@ -2043,25 +2087,11 @@ async function startUserbot(client, chatId) {
                     const button = row[j];
                     
                     if (button.text) {
-                        const btnTextLower = button.text.toLowerCase().trim();
+                        const btnTextLower = button.text.toLowerCase();
                         
-                        // QAT'IY TEKSHIRUV: Faqat "olish" yoki "клик" bo'lishi shart
-                        // Boshqa so'zlar yoki emojilar aralashgan bo'lsa qabul qilinmaydi (foydalanuvchi talabi)
-                        // Lekin ko'pincha "💎 Olish" bo'ladi. Foydalanuvchi "tepada yozgan sozdan boshqa soz bolsaxam u bosilmasin" dedi.
-                        // Bu "faqat shu so'zlar bo'lsin" deganini anglatadi.
-                        // Agar tugmada "💎 Olish" bo'lsa, bu "olish" ga teng emas.
-                        // Agar user "button ichida... olish yoki klik sozi bolsa bossin" desa, unda contains ishlatish kerak.
-                        // LEKIN "boshqa soz bolsaxam u bosilmasin" degani "faqat shu so'z bo'lsin" degani.
-                        // Menimcha user "Olish" yoki "Клик" so'zining o'zi bo'lishini xohlayapti.
-                        // Ehtimol emoji bo'lishi mumkin. "💎 Olish" ni "olish" deb hisoblash kerakmi?
-                        // User: "faqat olish yoki клик sozi bolsa bossin".
-                        // Menimcha, user tugmadagi text faqat "olish" yoki "клик" bo'lishini nazarda tutyapti (case-insensitive).
-                        // QO'SHIMCHA: Skrinshotda "Bosing" so'zi bor, shuning uchun uni ham qo'shamiz.
-                        
-                        const isExactMatch = btnTextLower === 'olish' || btnTextLower === 'клик' || btnTextLower === 'bosing';
-
-                        if (isExactMatch) {
-                            console.log(`[${chatId}] 💎 Tugma topildi (Exact): ${button.text}`);
+                        // Original Logic: Inclusive check (olish, klik, bosing)
+                        if (btnTextLower.includes('olish') || btnTextLower.includes('клик') || btnTextLower.includes('bosing')) {
+                            console.log(`[${chatId}] 💎 Tugma topildi: ${button.text}`);
                             try {
                                 await message.click(i, j);
                                 console.log(`[${chatId}] ✅ Tugma bosildi!`);
