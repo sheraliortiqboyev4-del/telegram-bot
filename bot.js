@@ -1620,77 +1620,39 @@ async function startAvtoUser(chatId, client, link, limit) {
                 }
             }
 
-            // 3. History Scan (Chuqur qidiruv - Optimized Parallel Batch Mode)
+            // 3. History Scan (Xabarlar tarixidan yig'ish)
             if (members.length < limit) {
                 try {
-                    console.log(`Starting Deep History Scan (Target: ${limit} members)...`);
-                    await bot.sendMessage(chatId, `⚠️ Guruh a'zolari yashirilgan yoki kam. Tarixni skanerlash boshlandi... (Maqsad: ${limit} ta)`);
+                    console.log(`Starting History Scan via iterMessages (Target: ${limit} members)...`);
+                    await bot.sendMessage(chatId, `⚠️ Guruh a'zolari yashirilgan. Xabarlar tarixidan foydalanuvchilar yig'ilmoqda...`);
                     
                     const historyMax = 10000; // 10k xabargacha ko'rish
-                    let pendingIds = new Set();
-                    const processingPromises = [];
-
-                    // Helper: Batchni process qilish
-                    const processBatch = async (batchIds) => {
-                        if (batchIds.length === 0) return;
-                        try {
-                            const chunks = [];
-                            for (let i = 0; i < batchIds.length; i += 100) chunks.push(batchIds.slice(i, i + 100));
-                            
-                            for (const chunk of chunks) {
-                                if (members.length >= limit) return;
-                                try {
-                                    const result = await client.invoke(new Api.users.GetUsers({ id: chunk }));
-                                    result.forEach(user => {
-                                        if (members.length >= limit) return;
-                                        if (user.deleted || user.bot || user.isSelf) return;
-                                        if (user.username && !uniqueUsernames.has(user.username)) {
-                                            uniqueUsernames.add(user.username);
-                                            members.push(`@${user.username}`);
-                                        }
-                                    });
-                                } catch (e) {}
-                            }
-                        } catch (e) {}
-                    };
-
+                    
                     for await (const message of client.iterMessages(entity, { limit: historyMax })) {
                         if (members.length >= limit) break;
                         
-                        let userId = null;
-                        if (message.fromId) {
-                            if (message.fromId.userId) userId = message.fromId.userId;
-                            else if (message.fromId.className === 'PeerUser') userId = message.fromId.userId;
-                        }
-                        
-                        if (userId) pendingIds.add(userId);
-                        
-                        // Service messages
-                        if (message.action) {
-                             if (message.action.className === 'MessageActionChatAddUser' && message.action.users) {
-                                 message.action.users.forEach(id => pendingIds.add(id));
-                             } else if (message.action.className === 'MessageActionChatJoinedByLink') {
-                                 if (userId) pendingIds.add(userId);
-                                 else if (message.action.inviterId) pendingIds.add(message.action.inviterId);
-                             }
+                        // Xabar egasini aniqlash
+                        let user = message.sender; // GramJS avtomatik keshlashdan oladi
+                        if (!user && message.fromId) {
+                            try {
+                                user = await message.getSender();
+                            } catch (e) {
+                                // Ignore
+                            }
                         }
 
-                        if (pendingIds.size >= 100) {
-                            const batch = Array.from(pendingIds);
-                            pendingIds.clear();
-                            const p = processBatch(batch);
-                            processingPromises.push(p);
-                            if (processingPromises.length > 20) {
-                                await Promise.all(processingPromises);
-                                processingPromises.length = 0;
+                        if (user) {
+                            // Faqat User tipidagilar (Channel/Chat emas)
+                            if (user.className !== 'User' && user.className !== 'PeerUser') continue;
+
+                            if (user.deleted || user.bot || user.isSelf) continue;
+                            
+                            if (user.username && !uniqueUsernames.has(user.username)) {
+                                uniqueUsernames.add(user.username);
+                                members.push(`@${user.username}`);
                             }
                         }
                     }
-                    
-                    if (pendingIds.size > 0) {
-                         processingPromises.push(processBatch(Array.from(pendingIds)));
-                    }
-                    await Promise.all(processingPromises);
 
                 } catch (e) {
                     console.log("History scan failed:", e.message);
