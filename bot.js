@@ -188,9 +188,28 @@ bot.onText(/\/start/, async (msg) => {
     try {
         const chatId = msg.chat.id;
         const name = msg.from.first_name || "Foydalanuvchi";
-        const safeName = name.replace(/[*_`\[\]()]/g, '');
+        const safeName = name.replace(/[*_`\[\]()]/g, '') || "Foydalanuvchi";
         
         console.log(`User started: ${name} (${chatId})`);
+
+        // Helper: Safe Send Message (Markdown fail bo'lsa, oddiy text yuborish)
+        const sendSafeMessage = async (chatId, text, options = {}) => {
+            try {
+                await bot.sendMessage(chatId, text, options);
+            } catch (e) {
+                console.error(`Failed to send Markdown message to ${chatId}:`, e.message);
+                if (options.parse_mode) {
+                    delete options.parse_mode;
+                    // Markdown belgilarni olib tashlash (oddiy matn uchun)
+                    const plainText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
+                    try {
+                        await bot.sendMessage(chatId, plainText, options);
+                    } catch (e2) {
+                         console.error(`Failed to send Plain Text message to ${chatId}:`, e2.message);
+                    }
+                }
+            }
+        };
 
         let user = await getUser(chatId);
         
@@ -201,7 +220,7 @@ bot.onText(/\/start/, async (msg) => {
             } else if (user.status !== 'approved') {
                 user = await updateUser(chatId, { status: 'approved' });
             }
-            await bot.sendMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
+            await sendSafeMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
             return;
         }
 
@@ -220,12 +239,12 @@ bot.onText(/\/start/, async (msg) => {
             // Yangi oddiy foydalanuvchi
             user = await updateUser(chatId, { name, status: 'pending' });
             
-            await bot.sendMessage(chatId, payMessage, payOptions);
+            await sendSafeMessage(chatId, payMessage, payOptions);
             
             // Adminga xabar berish (Inline buttonlar bilan)
             if (ADMIN_ID) {
                 try {
-                    await bot.sendMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${safeName}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)`, {
+                    await sendSafeMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${safeName}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)`, {
                         parse_mode: "Markdown",
                         reply_markup: {
                             inline_keyboard: [
@@ -241,17 +260,17 @@ bot.onText(/\/start/, async (msg) => {
         }
 
         if (user.status === 'blocked') {
-            await bot.sendMessage(chatId, payMessage, payOptions);
+            await sendSafeMessage(chatId, payMessage, payOptions);
             return;
         }
 
         if (user.status === 'pending') {
-            await bot.sendMessage(chatId, payMessage, payOptions);
+            await sendSafeMessage(chatId, payMessage, payOptions);
             
             // Adminga qayta eslatma (Inline buttonlar bilan)
             if (ADMIN_ID) {
                 try {
-                    await bot.sendMessage(ADMIN_ID, `⏳ **Foydalanuvchi hali ham kutmoqda!**\n👤 Ism: ${safeName}\n🆔 ID: \`${chatId}\`\nStatus: Pending`, {
+                    await sendSafeMessage(ADMIN_ID, `⏳ **Foydalanuvchi hali ham kutmoqda!**\n👤 Ism: ${safeName}\n🆔 ID: \`${chatId}\`\nStatus: Pending`, {
                         parse_mode: "Markdown",
                         reply_markup: {
                             inline_keyboard: [
@@ -272,7 +291,7 @@ bot.onText(/\/start/, async (msg) => {
             if (user.session) {
                  const clicks = user.clicks || 0;
 
-                 await bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
+                 await sendSafeMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
                      parse_mode: "Markdown",
                      ...getMainMenu(chatId)
                  });
@@ -291,13 +310,16 @@ bot.onText(/\/start/, async (msg) => {
                 delete loginPromises[chatId];
             }
 
-            await bot.sendMessage(chatId, "✅ Siz tasdiqlangansiz.\n\nTelegram akkauntingizga kirish uchun **telefon raqamingizni** yuboring (masalan: `+998901234567`).", {
+            await sendSafeMessage(chatId, "✅ Siz tasdiqlangansiz.\n\nTelegram akkauntingizga kirish uchun **telefon raqamingizni** yuboring (masalan: `+998901234567`).", {
                 parse_mode: "Markdown",
                 reply_markup: { remove_keyboard: true }
             });
         }
     } catch (e) {
         console.error("Error in /start command:", e);
+        try {
+             await bot.sendMessage(msg.chat.id, "⚠️ Botda vaqtincha xatolik yuz berdi. Iltimos keyinroq urinib ko'ring.");
+        } catch (e2) {}
     }
 });
 
