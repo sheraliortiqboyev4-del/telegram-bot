@@ -286,10 +286,70 @@ bot.onText(/\/start/, async (msg) => {
 
 // Admin komandalari
 // Admin komandalari (Eski commandlarni saqlab qolamiz, lekin asosiy ish callback orqali bo'ladi)
-bot.onText(/\/approve (\d+)/, async (msg, match) => {
-    // ... (eski kod, o'zgartirish shart emas, chunki callback handler asosiy ishni qiladi)
-    // Lekin userning talabi bo'yicha menyu chiqishi kerak.
-    // Hozircha bu commandlarni o'z holicha qoldiramiz, callback handlerga urg'u beramiz.
+bot.onText(/\/approve[ _](\d+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (chatId.toString() !== ADMIN_ID.toString()) return;
+
+    const targetId = parseInt(match[1]);
+    const user = await getUser(targetId);
+    if (user) {
+        await updateUser(targetId, { status: 'approved' });
+        await bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz!\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.", { parse_mode: "Markdown" });
+        await bot.sendMessage(chatId, `✅ ${user.name} tasdiqlandi!`);
+    } else {
+        await bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi!");
+    }
+});
+
+bot.onText(/\/block[ _](\d+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (chatId.toString() !== ADMIN_ID.toString()) return;
+
+    const targetId = parseInt(match[1]);
+    const user = await getUser(targetId);
+    if (user) {
+        await updateUser(targetId, { status: 'blocked', session: null });
+        if (userClients[targetId]) {
+            try {
+                await userClients[targetId].disconnect();
+                delete userClients[targetId];
+            } catch (e) {
+                console.error("Disconnect error:", e);
+            }
+        }
+
+        await bot.sendMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { 
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
+                ]
+            }
+        });
+        
+        await bot.sendMessage(chatId, `⛔️ ${user.name} bloklandi!`);
+    } else {
+        await bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi!");
+    }
+});
+
+bot.onText(/\/unblock[ _](\d+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (chatId.toString() !== ADMIN_ID.toString()) return;
+
+    const targetId = parseInt(match[1]);
+    const user = await getUser(targetId);
+    if (user) {
+        // Unblock - statusni 'approved' qilamiz, lekin sessiya yo'q bo'ladi
+        // Yoki 'pending' qilish kerakmi? Odatda 'approved' mantiqan to'g'ri, lekin sessiya qayta kiritilishi kerak
+        // Keling 'approved' qilamiz, user /start bosib telefon raqam kiritadi
+        await updateUser(targetId, { status: 'approved' });
+        
+        await bot.sendMessage(targetId, `🎉 Siz blokdan chiqarildingiz!\nBotdan foydalanish uchun /start buyrug'ini bosing.`, { parse_mode: "Markdown" });
+        await bot.sendMessage(chatId, `✅ ${user.name} blokdan chiqarildi!`);
+    } else {
+        await bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi!");
+    }
 });
 
 bot.onText(/\/stats/, async (msg) => {
@@ -478,8 +538,13 @@ bot.on('callback_query', async (query) => {
             recentUsers.forEach(u => {
                 const statusIcon = u.status === 'approved' ? '✅' : (u.status === 'blocked' ? '⛔️' : '⏳');
                 listMessage += `${statusIcon} [${u.name}](tg://user?id=${u.chatId}) (\`${u.chatId}\`)\n`;
-                if (data === 'admin_pending') {
+                
+                if (u.status === 'pending') {
                     listMessage += `👉 /approve_${u.chatId} | /block_${u.chatId}\n`; 
+                } else if (u.status === 'approved') {
+                    listMessage += `👉 /block_${u.chatId}\n`;
+                } else if (u.status === 'blocked') {
+                    listMessage += `👉 /unblock_${u.chatId}\n`;
                 }
             });
             
