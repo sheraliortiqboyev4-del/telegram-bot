@@ -73,6 +73,38 @@ const User = mongoose.model('User', userSchema);
 // Botni yaratish
 const bot = new TelegramBot(token, { polling: true });
 
+// Error Handling
+bot.on('polling_error', (error) => {
+    console.error(`[Polling Error] ${error.code}: ${error.message}`);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('[Uncaught Exception]', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('[Unhandled Rejection]', reason);
+});
+
+// Helper: Safe Send Message (Markdown fail bo'lsa, oddiy text yuborish)
+const sendSafeMessage = async (chatId, text, options = {}) => {
+    try {
+        await bot.sendMessage(chatId, text, options);
+    } catch (e) {
+        console.error(`Failed to send Markdown message to ${chatId}:`, e.message);
+        if (options.parse_mode) {
+            delete options.parse_mode;
+            // Markdown belgilarni olib tashlash (oddiy matn uchun)
+            const plainText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
+            try {
+                await bot.sendMessage(chatId, plainText, options);
+            } catch (e2) {
+                 console.error(`Failed to send Plain Text message to ${chatId}:`, e2.message);
+            }
+        }
+    }
+};
+
 // Foydalanuvchi holatlari
 const userStates = {};
 const avtoAlmazStates = {}; // Avto Almaz statusi
@@ -192,24 +224,7 @@ bot.onText(/\/start/, async (msg) => {
         
         console.log(`User started: ${name} (${chatId})`);
 
-        // Helper: Safe Send Message (Markdown fail bo'lsa, oddiy text yuborish)
-        const sendSafeMessage = async (chatId, text, options = {}) => {
-            try {
-                await bot.sendMessage(chatId, text, options);
-            } catch (e) {
-                console.error(`Failed to send Markdown message to ${chatId}:`, e.message);
-                if (options.parse_mode) {
-                    delete options.parse_mode;
-                    // Markdown belgilarni olib tashlash (oddiy matn uchun)
-                    const plainText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
-                    try {
-                        await bot.sendMessage(chatId, plainText, options);
-                    } catch (e2) {
-                         console.error(`Failed to send Plain Text message to ${chatId}:`, e2.message);
-                    }
-                }
-            }
-        };
+
 
         let user = await getUser(chatId);
         
