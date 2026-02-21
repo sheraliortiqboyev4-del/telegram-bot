@@ -1496,6 +1496,26 @@ async function startAvtoUser(chatId, client, link, limit) {
                 uniqueUsernames.add(raw);
             });
 
+            // Avval ChatParticipants ni tekshiramiz (Agar guruh kichik bo'lsa yoki oddiy guruh bo'lsa)
+            try {
+                const participants = await client.invoke(new Api.messages.GetFullChat({
+                    chatId: entity.id
+                }));
+                
+                if (participants && participants.users) {
+                    participants.users.forEach(user => {
+                         if (members.length >= limit) return;
+                         if (user.deleted || user.bot || user.isSelf) return;
+                         if (user.username && !uniqueUsernames.has(user.username)) {
+                             uniqueUsernames.add(user.username);
+                             members.push(`@${user.username}`);
+                         }
+                    });
+                }
+            } catch (e) {
+                // console.log("FullChat fetch failed (might be channel/supergroup):", e.message);
+            }
+
             // 1. Recent Users (Tezkor)
             try {
                 const recentResult = await client.invoke(new Api.channels.GetParticipants({
@@ -1551,61 +1571,85 @@ async function startAvtoUser(chatId, client, link, limit) {
                 }
             }
 
-            // 2. History Scan (Chuqur qidiruv - Batch Mode)
+            // 2. History Scan (Chuqur qidiruv - Streaming Batch Mode)
             // Agar Recent va Search yetarli bo'lmasa, Tarixni skaner qilamiz
             if (members.length < limit) {
                 try {
-                    const historyLimit = 3000; // 3000 ta xabar
-                    const userIdsToFetch = new Set();
+                    console.log(`Starting Deep History Scan (Target: ${limit} members)...`);
+                    await sendSafeMessage(chatId, `⚠️ Guruh a'zolari yashirilgan yoki kam. Tarixni skanerlash boshlandi... (Maqsad: ${limit} ta)`);
                     
-                    // Xabarlarni aylanamiz
-                    for await (const message of client.iterMessages(entity, { limit: historyLimit })) {
-                        if (members.length >= limit && userIdsToFetch.size === 0) break;
+                    const historyMax = 15000; // 15k xabargacha ko'rish
+                    let messagesScanned = 0;
+                    let pendingIds = new Set();
+                    
+                    // Helper to fetch and process users
+                    const processPendingIds = async () => {
+                        if (pendingIds.size === 0) return;
                         
-                        let user = message.sender;
-
-                        if (user && user.className === 'User') {
-                            if (user.deleted || user.bot || user.isSelf) continue;
-                            if (user.username && !uniqueUsernames.has(user.username)) {
-                                uniqueUsernames.add(user.username);
-                                members.push(`@${user.username}`);
+                        try {
+                            const batch = Array.from(pendingIds);
+                            // Telegram API limit: 100 users per request
+                            for (let i = 0; i < batch.length; i += 100) {
+                                if (members.length >= limit) break;
+                                const chunk = batch.slice(i, i + 100);
+                                const result = await client.invoke(new Api.users.GetUsers({ id: chunk }));
+                                
+                                result.forEach(user => {
+                                    if (members.length >= limit) return;
+                                    if (user.deleted || user.bot || user.isSelf) return;
+                                    if (user.username && !uniqueUsernames.has(user.username)) {
+                                        uniqueUsernames.add(user.username);
+                                        members.push(`@${user.username}`);
+                                    }
+                                });
                             }
-                        } else if (message.fromId && message.fromId.userId) {
-                             // User keshda yo'q, ID ni saqlab olamiz (keyin batch request qilamiz)
-                             userIdsToFetch.add(message.fromId.userId);
+                        } catch (e) {
+                            console.log("Batch fetch error:", e.message);
                         }
-                    }
+                        pendingIds.clear();
+                    };
 
-                    // Batch fetch users (ID lar orqali yig'ilganlarni olish)
-                    // Bu usul har bir user uchun alohida so'rov yuborishdan ko'ra 100 barobar tezroq
-                    if (members.length < limit && userIdsToFetch.size > 0) {
-                        const allIds = Array.from(userIdsToFetch);
-                        // 100 tadan bo'lib yuboramiz (Telegram API limiti)
-                        for (let i = 0; i < allIds.length; i += 100) {
+                    for await (const message of client.iterMessages(entity, { limit: historyMax })) {
+                        messagesScanned++;
+                        
+                        // 1. Sender ID
+                        let userId = null;
+                        if (message.fromId) {
+                            if (message.fromId.userId) {
+                                userId = message.fromId.userId;
+                            } else if (message.fromId.className === 'PeerUser') {
+                                userId = message.fromId.userId;
+                            }
+                        }
+                        if (userId) pendingIds.add(userId);
+
+                        // 2. Service Messages (Joined, Added) - Bu juda muhim!
+                        if (message.action) {
+                            if (message.action.className === 'MessageActionChatAddUser') {
+                                if (message.action.users) {
+                                    message.action.users.forEach(id => pendingIds.add(id));
+                                }
+                            } else if (message.action.className === 'MessageActionChatJoinedByLink') {
+                                if (userId) pendingIds.add(userId);
+                                else if (message.action.inviterId) pendingIds.add(message.action.inviterId);
+                            }
+                        }
+
+                        // Process every 100 pending IDs or every 200 messages
+                        if (pendingIds.size >= 100 || messagesScanned % 200 === 0) {
+                             await processPendingIds();
                              if (members.length >= limit) break;
-                             
-                             const batch = allIds.slice(i, i + 100);
-                             try {
-                                 const result = await client.invoke(new Api.users.GetUsers({
-                                     id: batch
-                                 }));
-                                 
-                                 result.forEach(user => {
-                                     if (members.length >= limit) return;
-                                     if (user.deleted || user.bot || user.isSelf) return;
-                                     if (user.username && !uniqueUsernames.has(user.username)) {
-                                         uniqueUsernames.add(user.username);
-                                         members.push(`@${user.username}`);
-                                     }
-                                 });
-                             } catch (e) {
-                                 console.log("Batch fetch error:", e.message);
-                             }
+                             // console.log(`Scanned ${messagesScanned} messages. Found ${members.length} users so far.`);
                         }
                     }
+                    
+                    // Final flush
+                    await processPendingIds();
+                    console.log(`History Scan Finished. Total members found: ${members.length}`);
 
                 } catch (e) {
                     console.log("History scan failed:", e.message);
+                    await sendSafeMessage(chatId, `⚠️ Tarixni skanerlashda xatolik: ${e.message}`);
                 }
             }
         } catch (e) {
