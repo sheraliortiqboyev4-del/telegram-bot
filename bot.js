@@ -924,7 +924,40 @@ bot.on('callback_query', async (query) => {
     }
 
     else if (data === "menu_help") {
-        const helpText = "🧾 **Yordam**\n📌 **Funksiyalar:**\n\n💎 **Avto Almaz**\nGuruhlarda almazli tugmalarni avtomatik bosadi.\n\n👤 **AvtoUser**\nGuruhdan foydalanuvchilarni yig'adi.\n\n⚔️ **Avto Reyd**\nTanlangan nishonga xabar yuboradi.\n\n📢 **Avto Reklama**\nFoydalanuvchilarga reklama yuboradi.\n\n📊 **Profil**\nStatistika.\n\n🔄 **Nomer almashtirish**\nChiqish.";
+        const helpText = `🧾 **Yordam**
+
+📌 **Funksiyalar:**
+
+💎 **Avto Almaz :**
+Guruhlarda almazli tugmalarni avtomatik bosadi.
+
+Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.
+
+👤 **AvtoUser :**
+🔗 Guruh linki va limitni kiriting.
+
+Guruhdan foydalanuvchilarni userlarini yig'adi va sizga yuboradi maksimal 1000 ta (yuser yig'ish jarayoni vaqt olishi mumkin iltimos sabirli bo'ling).
+
+
+👨‍💼 **Avto reyd :**
+Guruxga yoki berilgan Userga avto xabar yuboradi.
+Matn va Stikerlarni qo'llab quvvatlaydi.
+
+🔗 Guruh linki yoki user va limitni kiriting.
+
+📢 **Avto Reklama :**
+Siz botga yuborgan 100 ta yuserga reklama yuboradi.(unutmang 200 ta yuser yuborsangiz ham faqat ularni 100 tasini oladi )
+
+Userlar va reklama matnini kiriting.
+
+📊 **Profil**
+Sizning statistikangizni ko'rsatadi.
+
+🔄 **Nomer almashtirish**
+Telefon raqamingizni o'zgartirish.
+
+Agar Bot Haqida To'liq Ma'lumot olmoqchi bo'lsangiz murojat qiling : @ortiqov_x7`;
+
         bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
     }
 
