@@ -526,7 +526,7 @@ Sizning statistikangizni ko'rsatadi.
 🔄 **Nomer almashtirish**
 Telefon raqamingizni o'zgartirish.
 
-Agar Bot Haqida To'liq Ma'lumot olmoqchi bo'lsangiz murojat qiling : \`@ortiqov_x7\`;
+Agar Bot Haqida To'liq Ma'lumot olmoqchi bo'lsangiz murojat qiling : \`@ortiqov_x7\`;`;
 
 // /help komandasi
 bot.onText(/\/help/, async (msg) => {
@@ -590,16 +590,15 @@ bot.on('callback_query', async (query) => {
                 else pending++;
             });
 
-            const statsMessage = `📊 **Bot Statistikasi:**\n\n` +
-                `👥 Jami foydalanuvchilar: **${users.length}**\n` +
-                `✅ Tasdiqlanganlar: **${approved}**\n` +
-                `⏳ Kutilayotganlar: **${pending}**\n` +
-                `🚫 Bloklanganlar: **${blocked}**\n\n` +
-                `💎 Jami almazlar: **${totalClicks}** ta\n` +
-                `⚔️ Jami reydlar: **${totalReyds}** ta\n` +
-                `👥 Jami yig'ilgan userlar: **${totalUsersGathered}** ta\n` +
-                `📢 Jami yuborilgan reklamalar: **${totalAdsSent}** ta`;
-
+            const statsMessage = "📊 **Bot Statistikasi:**\n\n" +
+                "👥 Jami foydalanuvchilar: **" + users.length + "**\n" +
+                "✅ Tasdiqlanganlar: **" + approved + "**\n" +
+                "⏳ Kutilayotganlar: **" + pending + "**\n" +
+                "🚫 Bloklanganlar: **" + blocked + "**\n\n" +
+                "💎 Jami almazlar: **" + totalClicks + "** ta\n" +
+                "⚔️ Jami reydlar: **" + totalReyds + "** ta\n" +
+                "👥 Jami yig'ilgan userlar: **" + totalUsersGathered + "** ta\n" +
+                "📢 Jami yuborilgan reklamalar: **" + totalAdsSent + "** ta";
             try {
                 await bot.editMessageText(statsMessage, {
                     chat_id: chatId,
@@ -641,23 +640,23 @@ bot.on('callback_query', async (query) => {
                 return;
             }
 
-            let listMessage = `${title}\n\n`;
+            let listMessage = title + "\n\n";
             const recentUsers = filteredUsers.slice(-20).reverse(); 
 
             recentUsers.forEach(u => {
-                const statusIcon = u.status === 'approved' ? '✅' : (u.status === 'blocked' ? '⛔️' : '⏳');
-                listMessage += `${statusIcon} [${escapeMarkdown(u.name)}](tg://user?id=${u.chatId}) (\`${u.chatId}\`)\n`;
+                const statusIcon = u.status === 'approved' ? 'OK' : (u.status === 'blocked' ? 'NO' : 'WT');
+
                 
                 if (u.status === 'pending') {
-                    listMessage += `👉 /approve_${u.chatId} | /block_${u.chatId}\n`; 
+                    listMessage += "👉 /approve_" + u.chatId + " | /block_" + u.chatId + "\n"; 
                 } else if (u.status === 'approved') {
-                    listMessage += `👉 /block_${u.chatId}\n`;
+                    listMessage += "👉 /block_" + u.chatId + "\n";
                 } else if (u.status === 'blocked') {
-                    listMessage += `👉 /unblock_${u.chatId}\n`;
+                    listMessage += "👉 /unblock_" + u.chatId + "\n";
                 }
             });
             
-            listMessage += `\njami: ${filteredUsers.length} ta`;
+            listMessage += "\njami: " + filteredUsers.length + " ta";
 
             try {
                 await bot.editMessageText(listMessage, {
@@ -678,9 +677,10 @@ bot.on('callback_query', async (query) => {
                 await updateUser(targetId, { status: 'approved' });
                 await sendSafeMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz!\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.", { parse_mode: "Markdown" });
                 
-                await bot.answerCallbackQuery(query.id, { text: `✅ ${user.name} tasdiqlandi!` });
+                await bot.answerCallbackQuery(query.id, { text: "✅ " + user.name + " tasdiqlandi!" });
                 try {
-                    await bot.editMessageText(`✅ **Foydalanuvchi tasdiqlandi!**\n👤 Ism: ${escapeMarkdown(user.name)}\n🆔 ID: \`${targetId}\`\nStatus: Approved`, {
+                    const msg = "OK **Foydalanuvchi tasdiqlandi!**\nIsm: " + escapeMarkdown(user.name) + "\nID: " + targetId + "\nStatus: Approved";
+                    await bot.editMessageText(msg, {
                         chat_id: chatId,
                         message_id: messageId,
                         parse_mode: "Markdown"
@@ -703,7 +703,8 @@ bot.on('callback_query', async (query) => {
                     delete userClients[targetId];
                 }
 
-                await sendSafeMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${escapeMarkdown(user.name)}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: \`@ortiqov_x7\``, { 
+                const blockMsg = "You are blocked. Contact Admin.";
+                await sendSafeMessage(targetId, blockMsg, { 
                     parse_mode: "Markdown",
                     reply_markup: {
                         inline_keyboard: [
@@ -712,9 +713,10 @@ bot.on('callback_query', async (query) => {
                     }
                 });
 
-                await bot.answerCallbackQuery(query.id, { text: `⛔️ ${user.name} bloklandi!` });
+                await bot.answerCallbackQuery(query.id, { text: "NO " + user.name + " bloklandi!" });
                 try {
-                    await bot.editMessageText(`⛔️ **Foydalanuvchi bloklandi!**\n👤 Ism: ${escapeMarkdown(user.name)}\n🆔 ID: \`${targetId}\`\nStatus: Blocked`, {
+                    const blockText = "Foydalanuvchi bloklandi.\nIsm: " + escapeMarkdown(user.name) + "\nID: " + targetId;
+                    await bot.editMessageText(blockText, {
                         chat_id: chatId,
                         message_id: messageId,
                         parse_mode: "Markdown"
@@ -743,10 +745,10 @@ bot.on('callback_query', async (query) => {
                  avtoAlmazStates[chatId] = true;
              }
              const isActive = avtoAlmazStates[chatId];
-             const statusText = isActive ? "✅ Yoqilgan" : "🔴 O'chirilgan";
-             const btnText = isActive ? "🔴 O'chirish" : "✅ Yoqish";
+             const statusText = isActive ? "[ON] Yoqilgan" : "[OFF] O'chirilgan";
+             const btnText = isActive ? "[OFF] O'chirish" : "[ON] Yoqish";
 
-             bot.sendMessage(chatId, `💎 **Avto Almaz**\n\nBot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\nHolati: ${statusText}`, { 
+             bot.sendMessage(chatId, "**Avto Almaz**\n\nBot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\nHolati: " + statusText, { 
                  parse_mode: "Markdown",
                  reply_markup: {
                      inline_keyboard: [
@@ -767,11 +769,11 @@ bot.on('callback_query', async (query) => {
         avtoAlmazStates[chatId] = !avtoAlmazStates[chatId];
         
         const isActive = avtoAlmazStates[chatId];
-        const statusText = isActive ? "✅ Yoqilgan" : "🔴 O'chirilgan";
-        const btnText = isActive ? "🔴 O'chirish" : "✅ Yoqish";
+        const statusText = isActive ? "[ON] Yoqilgan" : "[OFF] O'chirilgan";
+        const btnText = isActive ? "[OFF] O'chirish" : "[ON] Yoqish";
         
         try {
-            await bot.editMessageText(`💎 **Avto Almaz**\n\nBot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\nHolati: ${statusText}`, {
+            await bot.editMessageText("**Avto Almaz**\n\nBot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\nHolati: " + statusText, {
                 chat_id: chatId,
                 message_id: messageId,
                 parse_mode: "Markdown",
@@ -782,9 +784,10 @@ bot.on('callback_query', async (query) => {
                     ]
                 }
             });
-            await bot.answerCallbackQuery(query.id, { text: `Avto Almaz ${isActive ? "yoqildi" : "o'chirildi"}!` });
+            const alertText = "Avto Almaz " + (isActive ? "yoqildi" : "o'chirildi") + "!";
+            await bot.answerCallbackQuery(query.id, { text: alertText });
         } catch (e) {
-            await bot.sendMessage(chatId, `Avto Almaz ${isActive ? "yoqildi" : "o'chirildi"}!`);
+            await bot.sendMessage(chatId, "Avto Almaz " + (isActive ? "yoqildi" : "o'chirildi") + "!");
         }
     }
 
@@ -836,24 +839,24 @@ bot.on('callback_query', async (query) => {
         if (userStates[chatId]) delete userStates[chatId];
         const user = await getUser(chatId);
         if (!user) {
-            bot.sendMessage(chatId, "❌ Siz ro'yxatdan o'tmagansiz. /start ni bosing.");
+            bot.sendMessage(chatId, "[X] Siz ro'yxatdan o'tmagansiz. /start ni bosing.");
             return;
         }
-        const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
-        const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
+        const statusIcon = user.status === 'approved' ? '[OK] Tasdiqlangan' : (user.status === 'blocked' ? '[NO] Bloklangan' : '[WT] Kutilmoqda');
+        const sessionStatus = userClients[chatId] ? '[ON] Onlayn' : '[OFF] Offlayn';
         
-        let message = `👤 Sizning Profilingiz:\n\n`;
-        message += `📛 Ism: ${escapeMarkdown(user.name)}\n`;
-        message += `🆔 ID: \`${user.chatId}\`\n`;
-        message += `📊 Holat: ${statusIcon}\n`;
-        message += `🔌 Sessiya: ${sessionStatus}\n\n`;
+        let message = "**Sizning Profilingiz:**\n\n";
+        message += "Ism: " + escapeMarkdown(user.name) + "\n";
+        message += "ID: " + user.chatId + "\n";
+        message += "Holat: " + statusIcon + "\n";
+        message += "Sessiya: " + sessionStatus + "\n\n";
         
-        message += `⚔️ Reydlar soni: ${user.reydCount || 0} ta\n`;
-        message += `👥 Yig'ilgan userlar: ${user.usersGathered || 0} ta\n`;
-        message += `📢 Yuborilgan reklamalar: ${user.adsCount || 0} ta\n`;
-        message += `💎 To'plangan almazlar: ${user.clicks || 0} ta\n\n`;
+        message += "Reydlar soni: " + (user.reydCount || 0) + " ta\n";
+        message += "Yig'ilgan userlar: " + (user.usersGathered || 0) + " ta\n";
+        message += "Yuborilgan reklamalar: " + (user.adsCount || 0) + " ta\n";
+        message += "To'plangan almazlar: " + (user.clicks || 0) + " ta\n\n";
 
-        message += `📅 Ro'yxatdan o'tgan sana: ${new Date(user.joinedAt).toLocaleDateString()}`;
+        message += "Ro'yxatdan o'tgan sana: " + new Date(user.joinedAt).toLocaleDateString();
 
         // Agar eski xabar bo'lsa edit qilamiz, aks holda yangi jo'natamiz
         try {
@@ -898,21 +901,21 @@ bot.on('callback_query', async (query) => {
         const user = await getUser(chatId);
         if (!user) return;
 
-        const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
-        const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
+        const statusIcon = user.status === 'approved' ? '[OK] Tasdiqlangan' : (user.status === 'blocked' ? '[NO] Bloklangan' : '[WT] Kutilmoqda');
+        const sessionStatus = userClients[chatId] ? '[ON] Onlayn' : '[OFF] Offlayn';
         
-        let message = `👤 Sizning Profilingiz:\n\n`;
-        message += `📛 Ism: ${escapeMarkdown(user.name)}\n`;
-        message += `🆔 ID: \`${user.chatId}\`\n`;
-        message += `📊 Holat: ${statusIcon}\n`;
-        message += `🔌 Sessiya: ${sessionStatus}\n\n`;
+        let message = "**Sizning Profilingiz:**\n\n";
+        message += "Ism: " + escapeMarkdown(user.name) + "\n";
+        message += "ID: " + user.chatId + "\n";
+        message += "Holat: " + statusIcon + "\n";
+        message += "Sessiya: " + sessionStatus + "\n\n";
         
-        message += `⚔️ Reydlar soni: ${user.reydCount || 0} ta\n`;
-        message += `👥 Yig'ilgan userlar: ${user.usersGathered || 0} ta\n`;
-        message += `📢 Yuborilgan reklamalar: ${user.adsCount || 0} ta\n`;
-        message += `💎 To'plangan almazlar: ${user.clicks || 0} ta\n\n`;
+        message += "Reydlar soni: " + (user.reydCount || 0) + " ta\n";
+        message += "Yig'ilgan userlar: " + (user.usersGathered || 0) + " ta\n";
+        message += "Yuborilgan reklamalar: " + (user.adsCount || 0) + " ta\n";
+        message += "To'plangan almazlar: " + (user.clicks || 0) + " ta\n\n";
 
-        message += `📅 Ro'yxatdan o'tgan sana: ${new Date(user.joinedAt).toLocaleDateString()}`;
+        message += "Ro'yxatdan o'tgan sana: " + new Date(user.joinedAt).toLocaleDateString();
 
         try {
             await bot.editMessageText(message, {
@@ -1117,7 +1120,7 @@ bot.on('callback_query', async (query) => {
             reklamaSessions[chatId].status = 'active';
             const session = reklamaSessions[chatId];
             
-            bot.sendMessage(chatId, `▶️ Reklama davom ettirilmoqda... (Qolganlar: ${session.users.length - session.currentIndex})`);
+            bot.sendMessage(chatId, "Reklama davom ettirilmoqda... (Qolganlar: " + (session.users.length - session.currentIndex) + ")");
             
             if (session.errorState) {
                 session.errorState = false;
@@ -1159,13 +1162,13 @@ bot.on('message', async (msg) => {
             }
 
             if (usernames.length > 100) {
-                bot.sendMessage(chatId, `❌ Maksimum 100 ta username mumkin. Siz ${usernames.length} ta yubordingiz.`);
+                bot.sendMessage(chatId, "Maksimum 100 ta username mumkin. Siz " + usernames.length + " ta yubordingiz.");
                 return;
             }
 
             state.rekUsers = usernames;
             state.step = 'WAITING_REK_CONTENT';
-            bot.sendMessage(chatId, `✅ **${usernames.length} ta** foydalanuvchi qabul qilindi.\n\nEndi reklama matnini yoki stikerni yuboring:`, { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "**" + usernames.length + " ta** foydalanuvchi qabul qilindi.\n\nEndi reklama matnini yoki stikerni yuboring:", { parse_mode: "Markdown" });
             return;
         }
 
@@ -1200,7 +1203,7 @@ bot.on('message', async (msg) => {
             }
 
             // state.step = 'WAITING_REK_CONFIRM'; // Inline buttonda kerak emas
-            bot.sendMessage(chatId, `📜 **Reklama:**\n\n${state.rekContentView}\n\n👥 **Qabul qiluvchilar:** ${state.rekUsers.length} ta\n\nBoshlashni tasdiqlaysizmi?`, {
+            bot.sendMessage(chatId, "**Reklama:**\n\n" + state.rekContentView + "\n\n**Qabul qiluvchilar:** " + state.rekUsers.length + " ta\n\nBoshlashni tasdiqlaysizmi?", {
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "✅ Boshlash", callback_data: "rek_start" }],
@@ -1235,7 +1238,8 @@ bot.on('message', async (msg) => {
             if (isNaN(limit) || limit <= 0) limit = 100;
             if (limit > 10000) limit = 10000;
 
-            // bot.sendMessage(chatId, `⏳ **Jarayon boshlandi...**\n\n🔗 Guruh: ${state.targetLink}\n👥 Limit: ${limit}\n\nIltimos kuting, bu biroz vaqt olishi mumkin.`, { parse_mode: "Markdown" });
+            // Process started...
+
 
             // Asosiy funksiyani chaqirish
             startAvtoUser(chatId, userClients[chatId], state.targetLink, limit);
@@ -1300,7 +1304,7 @@ bot.on('message', async (msg) => {
             }
             
             // state.step = 'WAITING_REYD_CONFIRM'; // Inline buttonda kerak emas
-            bot.sendMessage(chatId, `⚔️ Reyd ma'lumotlari:\n\n🎯 Nishon: ${state.target}\n🔢 Soni: ${state.count}\n📝 Xabar: ${state.contentView}\n\nBoshlashni tasdiqlaysizmi?`, {
+            bot.sendMessage(chatId, "**Reyd ma'lumotlari:**\n\nNishon: " + state.target + "\nSoni: " + state.count + "\nXabar: " + state.contentView + "\n\nBoshlashni tasdiqlaysizmi?", {
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "🚀 Boshlash", callback_data: "reyd_start" }],
@@ -1323,7 +1327,7 @@ bot.on('message', async (msg) => {
             }
             state.phoneNumber = phone;
             
-            bot.sendMessage(chatId, `🔄 Raqam: ${state.phoneNumber}\nUlanmoqda... Kod yuborilmoqda...`);
+            bot.sendMessage(chatId, "Raqam: " + state.phoneNumber + "\nUlanmoqda... Kod yuborilmoqda...");
 
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
                 connectionRetries: 5,
@@ -1344,21 +1348,21 @@ bot.on('message', async (msg) => {
             client.start({
                 phoneNumber: state.phoneNumber,
                 phoneCode: async () => {
-                    console.log(`[${chatId}] Kod so'ralmoqda...`);
+                    console.log("[" + chatId + "] Kod so'ralmoqda...");
                     state.step = 'WAITING_CODE';
                     userStates[chatId] = state;
-                    bot.sendMessage(chatId, "✅ Kod yuborildi! Telegramdan kelgan kodni 12.345 ko'rinishida kiriting:", { parse_mode: "Markdown" });
+                    bot.sendMessage(chatId, "Kod yuborildi! Telegramdan kelgan kodni 12.345 ko'rinishida kiriting:", { parse_mode: "Markdown" });
                     return new Promise((resolve) => { loginPromises[chatId].resolveCode = resolve; });
                 },
                 password: async () => {
-                    console.log(`[${chatId}] Parol so'ralmoqda...`);
+                    console.log("[" + chatId + "] Parol so'ralmoqda...");
                     state.step = 'WAITING_PASSWORD';
                     userStates[chatId] = state;
-                    bot.sendMessage(chatId, "🔐 2 Bosqichli parolni yuboring:", { parse_mode: "Markdown" });
+                    bot.sendMessage(chatId, "2 Bosqichli parolni yuboring:", { parse_mode: "Markdown" });
                     return new Promise((resolve) => { loginPromises[chatId].resolvePassword = resolve; });
                 },
                 onError: async (err) => {
-                    console.error(`[${chatId}] Client error:`, err);
+                    console.error("[" + chatId + "] Client error:", err);
                     
                     // Loopni to'xtatish uchun darhol sessiyani tozalaymiz
                     if (loginPromises[chatId]) delete loginPromises[chatId];
@@ -1371,24 +1375,24 @@ bot.on('message', async (msg) => {
                     } catch (e) { console.error("Disconnect error:", e); }
 
                     if (err.message && err.message.includes('PHONE_CODE_INVALID')) {
-                          bot.sendMessage(chatId, "❌ Kod noto'g'ri kiritildi. Iltimos, **/start** bosib, raqamingizni va yangi kodni qaytadan kiriting.", { parse_mode: "Markdown" });
+                          bot.sendMessage(chatId, "Kod noto'g'ri kiritildi. Iltimos, **/start** bosib, raqamingizni va yangi kodni qaytadan kiriting.", { parse_mode: "Markdown" });
                      } else if (err.message && err.message.includes('PHONE_NUMBER_INVALID')) {
-                          bot.sendMessage(chatId, "❌ Telefon raqam noto'g'ri. /start bosib qayta urinib ko'ring.");
+                          bot.sendMessage(chatId, "Telefon raqam noto'g'ri. /start bosib qayta urinib ko'ring.");
                      } else if (err.message && err.message.includes('wait') && err.message.includes('seconds')) {
                           const seconds = err.message.match(/\d+/)[0];
-                          bot.sendMessage(chatId, `⏳ Telegram sizni vaqtincha blokladi. Iltimos, **${seconds} soniya** kuting va keyin /start bosing.`);
+                          bot.sendMessage(chatId, "Telegram sizni vaqtincha blokladi. Iltimos, **" + seconds + " soniya** kuting va keyin /start bosing.");
                      } else {
-                          bot.sendMessage(chatId, `❌ Xatolik yuz berdi: ${err.message}. /start bosib qayta urinib ko'ring.`);
+                          bot.sendMessage(chatId, "Xatolik yuz berdi: " + err.message + ". /start bosib qayta urinib ko'ring.");
                      }
                  },
             }).then(async () => {
-                console.log(`[${chatId}] Client connected successfully!`);
+                console.log("[" + chatId + "] Client connected successfully!");
                 const session = client.session.save();
                 
                 // Bazaga sessiyani saqlash
                 await updateUser(chatId, { session: session });
                 
-                bot.sendMessage(chatId, "🎉 **Muvaffaqiyatli kirdingiz!** Userbot ishga tushdi.", { parse_mode: "Markdown" });
+                bot.sendMessage(chatId, "**Muvaffaqiyatli kirdingiz!** Userbot ishga tushdi.", { parse_mode: "Markdown" });
                 
                 state.step = 'LOGGED_IN';
                 userStates[chatId] = state;
@@ -1398,7 +1402,7 @@ bot.on('message', async (msg) => {
                 startUserbot(client, chatId);
 
             }).catch(async (e) => {
-                 console.error(`[${chatId}] Start error:`, e);
+                 console.error("[" + chatId + "] Start error:", e);
                  
                  // Clean up
                  if (userStates[chatId]) delete userStates[chatId];
@@ -1413,24 +1417,24 @@ bot.on('message', async (msg) => {
                  } else if (e.message.includes('PHONE_CODE_INVALID')) {
                      bot.sendMessage(chatId, "❌ Kod noto'g'ri. Qaytadan /start bosing.");
                  } else if (e.message.includes('wait') && e.message.includes('seconds')) {
-                     const seconds = e.message.match(/\d+/)[0];
-                     bot.sendMessage(chatId, `⏳ Telegram sizni vaqtincha blokladi. Iltimos, **${seconds} soniya** kuting va keyin /start bosing.`);
-                 } else {
-                     bot.sendMessage(chatId, `❌ Xatolik: ${e.message}. /start ni bosing.`);
-                 }
-            });
-        }
-        // 2. Kodni qabul qilish
-        else if (state.step === 'WAITING_CODE') {
-            const rawCode = text;
-            const code = rawCode.replace(/\D/g, ''); 
-            console.log(`[${chatId}] Kod qabul qilindi: ${code} (Raw: ${rawCode})`);
-            
-            if (loginPromises[chatId] && loginPromises[chatId].resolveCode) {
-                bot.sendMessage(chatId, "🔄 Kod tekshirilmoqda...");
-                loginPromises[chatId].resolveCode(code);
-            } else {
-                console.warn(`[${chatId}] Kod keldi, lekin promise yo'q!`);
+                    const seconds = e.message.match(/\d+/)[0];
+                    bot.sendMessage(chatId, "Telegram sizni vaqtincha blokladi. Iltimos, **" + seconds + " soniya** kuting va keyin /start bosing.");
+                } else {
+                    bot.sendMessage(chatId, "Xatolik: " + e.message + ". /start ni bosing.");
+                }
+           });
+       }
+       // 2. Kodni qabul qilish
+       else if (state.step === 'WAITING_CODE') {
+           const rawCode = text;
+           const code = rawCode.replace(/\D/g, ''); 
+           console.log("[" + chatId + "] Kod qabul qilindi: " + code + " (Raw: " + rawCode + ")");
+           
+           if (loginPromises[chatId] && loginPromises[chatId].resolveCode) {
+               bot.sendMessage(chatId, "🔄 Kod tekshirilmoqda...");
+               loginPromises[chatId].resolveCode(code);
+           } else {
+               console.warn("[" + chatId + "] Kod keldi, lekin promise yo'q!");
                 bot.sendMessage(chatId, "⚠️ Xatolik: Sessiya topilmadi yoki eskirgan. Iltimos, /start bosib boshidan boshlang.");
                 delete userStates[chatId];
             }
@@ -1438,7 +1442,7 @@ bot.on('message', async (msg) => {
         // 3. Parolni qabul qilish
         else if (state.step === 'WAITING_PASSWORD') {
             const password = text.trim();
-            console.log(`[${chatId}] Parol qabul qilindi.`);
+            console.log("[" + chatId + "] Parol qabul qilindi.");
             if (loginPromises[chatId] && loginPromises[chatId].resolvePassword) {
                 bot.sendMessage(chatId, "🔄 Parol tekshirilmoqda...");
                 loginPromises[chatId].resolvePassword(password);
@@ -1450,7 +1454,7 @@ bot.on('message', async (msg) => {
     } catch (error) {
         console.error("Umumiy xatolik:", error);
         const chatId = msg.chat.id;
-        bot.sendMessage(chatId, `❌ Xatolik: ${error.message}`);
+        bot.sendMessage(chatId, "Xatolik: " + error.message);
     }
 });
 
@@ -1493,7 +1497,7 @@ async function startAvtoUser(chatId, client, link, limit) {
                                     entity = check.chat;
                                 } else if (check.title) {
                                     // Agar ChatInvite qaytsa (lekin biz a'zo bo'lsak), title orqali qidiramiz
-                                    console.log(`Searching for chat by title: ${check.title}`);
+                                    console.log("Searching for chat by title: " + check.title);
                                     
                                     // Dialoglardan qidirish (ko'proq limit bilan)
                                     const dialogs = await client.getDialogs({ limit: 200 });
@@ -1547,7 +1551,7 @@ async function startAvtoUser(chatId, client, link, limit) {
             }
         } catch (e) {
             console.error("Join error:", e);
-            bot.sendMessage(chatId, `❌ **Xatolik:** Guruhga kirib bo'lmadi.\nLink noto'g'ri yoki bot spamga tushgan bo'lishi mumkin.\n\nDetal: ${e.message}`);
+            bot.sendMessage(chatId, "Xatolik: Guruhga kirib bo'lmadi.\nLink noto'g'ri yoki bot spamga tushgan bo'lishi mumkin.\n\nDetal: " + e.message);
             return;
         }
 
@@ -1560,7 +1564,7 @@ async function startAvtoUser(chatId, client, link, limit) {
 
         const title = entity.title || "Guruh";
         const safeTitle = title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        // bot.sendMessage(chatId, `✅ <b>${safeTitle}</b> guruhiga ulanildi.\n\n2. A'zolar ro'yxati shakllantirilmoqda...`, { parse_mode: "HTML" });
+        // bot.sendMessage(chatId, "<b>" + safeTitle + "</b> guruhiga ulanildi.\n\n2. A'zolar ro'yxati shakllantirilmoqda...", { parse_mode: "HTML" });
 
         // 2. MA'LUMOTLARNI YIG'ISH
         let admins = [];
@@ -1571,7 +1575,7 @@ async function startAvtoUser(chatId, client, link, limit) {
             // FAQAT HISTORY SCAN (Xabarlar tarixidan yig'ish)
             if (members.length < limit) {
                 try {
-                    console.log(`Starting History Scan via iterMessages (Target: ${limit} members)...`);
+                    console.log("Starting History Scan via iterMessages (Target: " + limit + " members)...");
                     
                     const historyMax = 10000; // 10k xabargacha ko'rish
                     
@@ -1593,7 +1597,7 @@ async function startAvtoUser(chatId, client, link, limit) {
                             
                             if (user.username && !uniqueUsernames.has(user.username)) {
                                 uniqueUsernames.add(user.username);
-                                members.push(`@${user.username}`);
+                                members.push("@" + user.username);
                             }
                         }
                     }
@@ -1604,7 +1608,7 @@ async function startAvtoUser(chatId, client, link, limit) {
             }
         } catch (e) {
             console.error("Member fetch error:", e);
-            bot.sendMessage(chatId, `❌ A'zolarni olishda xatolik: ${e.message}`);
+            bot.sendMessage(chatId, "A'zolarni olishda xatolik: " + e.message);
             return;
         }
 
@@ -1617,7 +1621,7 @@ async function startAvtoUser(chatId, client, link, limit) {
         const total = admins.length + members.length;
         
         // 1. Summary Message
-        const summaryMessage = `� NATIJA:\n\n�� Adminlar: ${admins.length} ta\n👥 Azolar: ${members.length} ta\n📦 Jami: ${total} ta`;
+        const summaryMessage = "NATIJA:\n\nAdminlar: " + admins.length + " ta\nAzolar: " + members.length + " ta\nJami: " + total + " ta";
         await bot.sendMessage(chatId, summaryMessage, { parse_mode: "HTML" });
 
         // Helper: Ro'yxatni bo'laklab yuborish
@@ -1642,23 +1646,23 @@ async function startAvtoUser(chatId, client, link, limit) {
 
         // 2. Adminlar Message
         if (admins.length > 0) {
-            await sendListMessage(`👑 <b>ADMINLAR USERNAMELARI:</b>`, admins);
+            await sendListMessage("<b>ADMINLAR USERNAMELARI:</b>", admins);
         }
 
         // 3. Azolar Message
         if (members.length > 0) {
-            await sendListMessage(`👥 <b>AZOLAR USERNAMELARI:</b>`, members);
+            await sendListMessage("<b>AZOLAR USERNAMELARI:</b>", members);
         }
 
         // 4. Tugadi Message
-        await bot.sendMessage(chatId, "✅ Tugadi", { parse_mode: "HTML", ...getMainMenu(chatId) });
+        await bot.sendMessage(chatId, "Tugadi", { parse_mode: "HTML", ...getMainMenu(chatId) });
 
         // Statistikani yangilash
         await User.findOneAndUpdate({ chatId }, { $inc: { usersGathered: total } });
 
     } catch (err) {
         console.error("General AvtoUser error:", err);
-        bot.sendMessage(chatId, `❌ Kutilmagan xatolik: ${err.message}`);
+        bot.sendMessage(chatId, "Kutilmagan xatolik: " + err.message);
     }
 }
 
@@ -1746,11 +1750,11 @@ async function startReyd(chatId, client, target, count, content, contentType, en
             }
         } catch (e) {
             console.error("Target resolve error:", e);
-            bot.sendMessage(chatId, `⚠️ Guruhni aniqlab bo'lmadi yoki qo'shilib bo'lmadi: ${e.message}`);
+            bot.sendMessage(chatId, "Guruhni aniqlab bo'lmadi yoki qo'shilib bo'lmadi: " + e.message);
             // Davom etishga harakat qilamiz (balki target to'g'ridir)
         }
 
-        bot.sendMessage(chatId, `🚀 Reyd boshlanmoqda: ${target} ga ${count} ta xabar.`);
+        bot.sendMessage(chatId, "Reyd boshlanmoqda: " + target + " ga " + count + " ta xabar.");
 
         for (let i = 0; i < count; i++) {
             // Check status
@@ -1786,13 +1790,13 @@ async function startReyd(chatId, client, target, count, content, contentType, en
                 }
                 sent++;
             } catch (e) {
-                console.error(`Reyd error (${i}):`, e);
+                console.error("Reyd error (" + i + "):", e);
                 errors++;
                 
                 // FloodWait xatoligini avtomatik hal qilish
                 if (e.seconds) {
                     const waitTime = e.seconds;
-                    bot.sendMessage(chatId, `⚠️ Telegram cheklovi (FloodWait): ${waitTime} sekund kuting...`);
+                    bot.sendMessage(chatId, "Telegram cheklovi (FloodWait): " + waitTime + " sekund kuting...");
                     // Kutish vaqti
                     await new Promise(resolve => setTimeout(resolve, (waitTime + 2) * 1000));
                     // Xabarni qayta yuborish uchun i ni bittaga kamaytiramiz
@@ -1805,14 +1809,14 @@ async function startReyd(chatId, client, target, count, content, contentType, en
                      // Raqamni ajratib olishga harakat qilamiz
                      const match = e.message.match(/\d+/);
                      const waitTime = match ? parseInt(match[0]) : 60;
-                     bot.sendMessage(chatId, `⚠️ Telegram cheklovi (FloodWait): ${waitTime} sekund kuting...`);
+                     bot.sendMessage(chatId, "Telegram cheklovi (FloodWait): " + waitTime + " sekund kuting...");
                      await new Promise(resolve => setTimeout(resolve, (waitTime + 2) * 1000));
                      i--;
                      continue;
                 }
 
                 if (e.message && e.message.includes('PEER_FLOOD')) {
-                    bot.sendMessage(chatId, `⚠️ Telegram cheklovi (Spam/Peer Flood). Reyd to'xtatildi.`);
+                    bot.sendMessage(chatId, "Telegram cheklovi (Spam/Peer Flood). Reyd to'xtatildi.");
                     break;
                 }
             }
@@ -1834,7 +1838,7 @@ async function startReyd(chatId, client, target, count, content, contentType, en
             }
         }
 
-        bot.sendMessage(chatId, `🏁 **Reyd yakunlandi!**\n\n✅ Yuborildi: ${sent}\n❌ Xatolik: ${errors}`, { 
+        bot.sendMessage(chatId, "Reyd yakunlandi!\n\nYuborildi: " + sent + "\nXatolik: " + errors, { 
             parse_mode: "Markdown",
             ...getMainMenu()
         });
@@ -1847,7 +1851,7 @@ async function startReyd(chatId, client, target, count, content, contentType, en
     } catch (e) {
         console.error("Reyd fatal error:", e);
         if (reydSessions[chatId]) delete reydSessions[chatId];
-        bot.sendMessage(chatId, `❌ Reyd xatolik bilan tugadi: ${e.message}`);
+        bot.sendMessage(chatId, "Reyd xatolik bilan tugadi: " + e.message);
     }
 }
 
@@ -1926,17 +1930,17 @@ async function startReklama(chatId, client, users, content, contentType, entitie
             }
             
             sentCount++;
-            console.log(`[${chatId}] Reklama yuborildi: ${username}`);
+            console.log("[" + chatId + "] Reklama yuborildi: " + username);
         } catch (err) {
             failCount++;
-            console.error(`[${chatId}] Reklama xatolik (${username}):`, err);
+            console.error("[" + chatId + "] Reklama xatolik (" + username + "):", err);
             
             if (err.message && (err.message.includes('PEER_FLOOD') || err.message.includes('FLOOD_WAIT') || err.message.includes('spam'))) {
                 reklamaSessions[chatId].status = 'paused';
                 reklamaSessions[chatId].errorState = true;
                 reklamaSessions[chatId].currentIndex = i; // Shu yerdan davom ettiramiz
                 
-                bot.sendMessage(chatId, `⚠️ **DIQQAT!** Telegram sizni vaqtincha spam qildi.\nReklama vaqtincha to'xtatildi.\n\nDavom ettirish yoki tugatishni tanlang:`, {
+                bot.sendMessage(chatId, "DIQQAT! Telegram sizni vaqtincha spam qildi.\nReklama vaqtincha to'xtatildi.\n\nDavom ettirish yoki tugatishni tanlang:", {
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: "▶️ Davom ettirish", callback_data: "rek_resume" }, { text: "⏹ Tugatish", callback_data: "rek_stop" }]
@@ -1967,7 +1971,7 @@ async function startReklama(chatId, client, users, content, contentType, entitie
         }
     }
     
-    bot.sendMessage(chatId, `✅ **Reklama yakunlandi!**\n\nJami: ${users.length}\nYuborildi: ${sentCount}\nO'xshamadi: ${failCount}`, { parse_mode: "Markdown", ...getMainMenu() });
+    bot.sendMessage(chatId, "Reklama yakunlandi!\n\nJami: " + users.length + "\nYuborildi: " + sentCount + "\nO'xshamadi: " + failCount, { parse_mode: "Markdown", ...getMainMenu() });
     
     // Statistikani yangilash
     if (sentCount > 0) {
@@ -1976,7 +1980,7 @@ async function startReklama(chatId, client, users, content, contentType, entitie
 }
 
 async function startUserbot(client, chatId) {
-    console.log(`Userbot ${chatId} uchun ishga tushdi.`);
+    console.log("Userbot " + chatId + " uchun ishga tushdi.");
     
     // Default holat: Yoqilgan
     if (avtoAlmazStates[chatId] === undefined) {
@@ -2005,10 +2009,10 @@ async function startUserbot(client, chatId) {
                         // Qat'iy tekshirish (Strict check)
                         // Faqat "olish", "клик" yoki "bosing" so'zlari bo'lsa bosadi
                         if (btnText === 'olish' || btnText === 'клик' || btnText === 'bosing') {
-                            console.log(`[${chatId}] 💎 Tugma topildi (Strict): ${button.text}`);
+                            console.log("[" + chatId + "] Tugma topildi (Strict): " + button.text);
                             try {
                                 await message.click(i, j);
-                                console.log(`[${chatId}] ✅ Tugma bosildi!`);
+                                console.log("[" + chatId + "] Tugma bosildi!");
                                 clicked = true;
                                 
                                 // Statistikani yangilash
@@ -2025,7 +2029,7 @@ async function startUserbot(client, chatId) {
                                     console.error("Chat title error:", e);
                                 }
 
-                                bot.sendMessage(chatId, `💎 Avto Almaz: 1 almaz olindi\n📍 ${chatTitle}\n\n📊 Jami: ${totalClicks} ta`, { parse_mode: "Markdown" });
+                                bot.sendMessage(chatId, "Avto Almaz: 1 almaz olindi\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" });
                                 
                                 break;
                             } catch (err) {
@@ -2043,16 +2047,16 @@ async function startUserbot(client, chatId) {
 // Bot qayta ishga tushganda sessiyalarni tiklash
 async function restoreUserSession(chatId, sessionString) {
     try {
-        console.log(`Sessiyani tiklash: ${chatId}`);
+        console.log("Sessiyani tiklash: " + chatId);
         const client = new TelegramClient(new StringSession(sessionString), apiId, apiHash, {
             connectionRetries: 5,
         });
         await client.connect();
         userClients[chatId] = client;
         startUserbot(client, chatId);
-        console.log(`Userbot ${chatId} qayta tiklandi.`);
+        console.log("Userbot " + chatId + " qayta tiklandi.");
     } catch (e) {
-        console.error(`Sessiyani tiklashda xatolik (${chatId}):`, e);
+        console.error("Sessiyani tiklashda xatolik (" + chatId + "):", e);
         bot.sendMessage(chatId, "⚠️ Sessiyangiz eskirgan bo'lishi mumkin. Iltimos, /start bosib qaytadan kiring.");
         await updateUser(chatId, { session: null }); // Sessiyani o'chirish
     }
@@ -2070,5 +2074,7 @@ async function restoreUserSession(chatId, sessionString) {
 
 // Xatolarni ushlash
 bot.on('polling_error', (error) => {
-    console.error(`Polling xatosi: ${error.code} - ${error.message}`);
-})
+    console.error("Polling xatosi: " + error.code + " - " + error.message);
+});
+
+// End of file
