@@ -99,10 +99,16 @@ const sendSafeMessage = async (chatId, text, options = {}) => {
             try {
                 await bot.sendMessage(chatId, plainText, options);
             } catch (e2) {
-                 console.error(`Failed to send Plain Text message to ${chatId}:`, e2.message);
+                console.error(`Failed to send plain text message to ${chatId}:`, e2.message);
             }
         }
     }
+};
+
+// Helper: Escape Markdown
+const escapeMarkdown = (text) => {
+    if (!text) return '';
+    return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, '\\$&');
 };
 
 // Foydalanuvchi holatlari
@@ -488,6 +494,46 @@ bot.onText(/\/rek/, async (msg) => {
     bot.sendMessage(chatId, "🚀 **Avto Reklama**\n\nIltimos, reklama yuboriladigan foydalanuvchilar username-larini yuboring.\n\n_Misol:_\n@user1\n@user2\n@user3\n\n(Maksimum 100 ta username)", { parse_mode: "Markdown" });
 });
 
+const HELP_TEXT = `🧾 **Yordam**
+
+📌 **Funksiyalar:**
+
+💎 **Avto Almaz :**
+Guruhlarda almazli tugmalarni avtomatik bosadi.
+
+Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.
+
+👤 **AvtoUser :**
+🔗 Guruh linki va limitni kiriting.
+
+Guruhdan foydalanuvchilarni userlarini yig'adi va sizga yuboradi maksimal 1000 ta (yuser yig'ish jarayoni vaqt olishi mumkin iltimos sabirli bo'ling).
+
+
+👨‍💼 **Avto reyd :**
+Guruxga yoki berilgan Userga avto xabar yuboradi.
+Matn va Stikerlarni qo'llab quvvatlaydi.
+
+🔗 Guruh linki yoki user va limitni kiriting.
+
+📢 **Avto Reklama :**
+Siz botga yuborgan 100 ta yuserga reklama yuboradi.(unutmang 200 ta yuser yuborsangiz ham faqat ularni 100 tasini oladi )
+
+Userlar va reklama matnini kiriting.
+
+📊 **Profil**
+Sizning statistikangizni ko'rsatadi.
+
+🔄 **Nomer almashtirish**
+Telefon raqamingizni o'zgartirish.
+
+Agar Bot Haqida To'liq Ma'lumot olmoqchi bo'lsangiz murojat qiling : \`@ortiqov_x7\`;
+
+// /help komandasi
+bot.onText(/\/help/, async (msg) => {
+    const chatId = msg.chat.id;
+    await sendSafeMessage(chatId, HELP_TEXT, { parse_mode: "Markdown" });
+});
+
 
 // Callback Query Handler (Inline tugmalar uchun)
 bot.on('callback_query', async (query) => {
@@ -554,17 +600,19 @@ bot.on('callback_query', async (query) => {
                 `👥 Jami yig'ilgan userlar: **${totalUsersGathered}** ta\n` +
                 `📢 Jami yuborilgan reklamalar: **${totalAdsSent}** ta`;
 
-            await bot.editMessageText(statsMessage, {
-                chat_id: chatId,
-                message_id: messageId,
-                parse_mode: "Markdown",
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "🔄 Yangilash", callback_data: "admin_stats" }],
-                        [{ text: "🔙 Orqaga", callback_data: "admin_panel" }]
-                    ]
-                }
-            });
+            try {
+                await bot.editMessageText(statsMessage, {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🔄 Yangilash", callback_data: "admin_stats" }],
+                            [{ text: "🔙 Orqaga", callback_data: "admin_panel" }]
+                        ]
+                    }
+                });
+            } catch (e) {}
             await bot.answerCallbackQuery(query.id);
             return;
         }
@@ -598,7 +646,7 @@ bot.on('callback_query', async (query) => {
 
             recentUsers.forEach(u => {
                 const statusIcon = u.status === 'approved' ? '✅' : (u.status === 'blocked' ? '⛔️' : '⏳');
-                listMessage += `${statusIcon} [${u.name}](tg://user?id=${u.chatId}) (\`${u.chatId}\`)\n`;
+                listMessage += `${statusIcon} [${escapeMarkdown(u.name)}](tg://user?id=${u.chatId}) (\`${u.chatId}\`)\n`;
                 
                 if (u.status === 'pending') {
                     listMessage += `👉 /approve_${u.chatId} | /block_${u.chatId}\n`; 
@@ -611,12 +659,14 @@ bot.on('callback_query', async (query) => {
             
             listMessage += `\njami: ${filteredUsers.length} ta`;
 
-            await bot.editMessageText(listMessage, {
-                chat_id: chatId,
-                message_id: messageId,
-                parse_mode: "Markdown",
-                reply_markup: getAdminMenu().reply_markup
-            });
+            try {
+                await bot.editMessageText(listMessage, {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    parse_mode: "Markdown",
+                    reply_markup: getAdminMenu().reply_markup
+                });
+            } catch (e) {}
             await bot.answerCallbackQuery(query.id);
             return;
         }
@@ -626,14 +676,16 @@ bot.on('callback_query', async (query) => {
             const user = await getUser(targetId);
             if (user) {
                 await updateUser(targetId, { status: 'approved' });
-                await bot.sendMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz!\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.", { parse_mode: "Markdown" });
+                await sendSafeMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz!\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.", { parse_mode: "Markdown" });
                 
                 await bot.answerCallbackQuery(query.id, { text: `✅ ${user.name} tasdiqlandi!` });
-                await bot.editMessageText(`✅ **Foydalanuvchi tasdiqlandi!**\n👤 Ism: ${user.name}\n🆔 ID: \`${targetId}\`\nStatus: Approved`, {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    parse_mode: "Markdown"
-                });
+                try {
+                    await bot.editMessageText(`✅ **Foydalanuvchi tasdiqlandi!**\n👤 Ism: ${escapeMarkdown(user.name)}\n🆔 ID: \`${targetId}\`\nStatus: Approved`, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        parse_mode: "Markdown"
+                    });
+                } catch (e) {}
                 await bot.sendMessage(chatId, "👇 Bosh menyu:", getAdminMenu());
             } else {
                 await bot.answerCallbackQuery(query.id, { text: "❌ Foydalanuvchi topilmadi!", show_alert: true });
@@ -651,7 +703,7 @@ bot.on('callback_query', async (query) => {
                     delete userClients[targetId];
                 }
 
-                await bot.sendMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { 
+                await sendSafeMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${escapeMarkdown(user.name)}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: \`@ortiqov_x7\``, { 
                     parse_mode: "Markdown",
                     reply_markup: {
                         inline_keyboard: [
@@ -661,11 +713,13 @@ bot.on('callback_query', async (query) => {
                 });
 
                 await bot.answerCallbackQuery(query.id, { text: `⛔️ ${user.name} bloklandi!` });
-                await bot.editMessageText(`⛔️ **Foydalanuvchi bloklandi!**\n👤 Ism: ${user.name}\n🆔 ID: \`${targetId}\`\nStatus: Blocked`, {
-                    chat_id: chatId,
-                    message_id: messageId,
-                    parse_mode: "Markdown"
-                });
+                try {
+                    await bot.editMessageText(`⛔️ **Foydalanuvchi bloklandi!**\n👤 Ism: ${escapeMarkdown(user.name)}\n🆔 ID: \`${targetId}\`\nStatus: Blocked`, {
+                        chat_id: chatId,
+                        message_id: messageId,
+                        parse_mode: "Markdown"
+                    });
+                } catch (e) {}
                 await bot.sendMessage(chatId, "👇 Bosh menyu:", getAdminMenu());
             } else {
                 await bot.answerCallbackQuery(query.id, { text: "❌ Foydalanuvchi topilmadi!", show_alert: true });
@@ -789,7 +843,7 @@ bot.on('callback_query', async (query) => {
         const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
         
         let message = `👤 Sizning Profilingiz:\n\n`;
-        message += `📛 Ism: ${user.name}\n`;
+        message += `📛 Ism: ${escapeMarkdown(user.name)}\n`;
         message += `🆔 ID: \`${user.chatId}\`\n`;
         message += `📊 Holat: ${statusIcon}\n`;
         message += `🔌 Sessiya: ${sessionStatus}\n\n`;
@@ -816,15 +870,17 @@ bot.on('callback_query', async (query) => {
             });
         } catch (e) {
             // Agar edit o'xshamasa (masalan xabar o'zgarmagan bo'lsa yoki eski xabar bo'lmasa)
-            bot.sendMessage(chatId, message, {
-                parse_mode: "Markdown",
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "🔄 Yangilash", callback_data: "profile_reset" }],
-                        [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
-                    ]
-                }
-            });
+            if (!e.message.includes('message is not modified')) {
+                await sendSafeMessage(chatId, message, {
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🔄 Yangilash", callback_data: "profile_reset" }],
+                            [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
+                        ]
+                    }
+                });
+            }
         }
     }
 
@@ -846,7 +902,7 @@ bot.on('callback_query', async (query) => {
         const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
         
         let message = `👤 Sizning Profilingiz:\n\n`;
-        message += `📛 Ism: ${user.name}\n`;
+        message += `📛 Ism: ${escapeMarkdown(user.name)}\n`;
         message += `🆔 ID: \`${user.chatId}\`\n`;
         message += `📊 Holat: ${statusIcon}\n`;
         message += `🔌 Sessiya: ${sessionStatus}\n\n`;
@@ -872,15 +928,17 @@ bot.on('callback_query', async (query) => {
             });
             await bot.answerCallbackQuery(query.id, { text: "🔄 Statistikalar tozalandi!" });
         } catch (e) {
-            bot.sendMessage(chatId, message, {
-                parse_mode: "Markdown",
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "🔄 Yangilash", callback_data: "profile_reset" }],
-                        [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
-                    ]
-                }
-            });
+            if (!e.message.includes('message is not modified')) {
+                await sendSafeMessage(chatId, message, {
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🔄 Yangilash", callback_data: "profile_reset" }],
+                            [{ text: "🔙 Asosiy menyu", callback_data: "menu_back_main" }]
+                        ]
+                    }
+                });
+            }
         }
     }
 
@@ -895,7 +953,9 @@ bot.on('callback_query', async (query) => {
                 ...getMainMenu()
             });
         } catch (e) {
-             bot.sendMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu() });
+             if (!e.message.includes('message is not modified')) {
+                 await sendSafeMessage(chatId, "📋 **Asosiy menyu:**", { parse_mode: "Markdown", ...getMainMenu() });
+             }
         }
     }
 
@@ -914,7 +974,7 @@ bot.on('callback_query', async (query) => {
             if (userStates[chatId]) delete userStates[chatId];
             if (loginPromises[chatId]) delete loginPromises[chatId];
 
-            bot.sendMessage(chatId, "🔄 **Tizimdan chiqildi.**\n\nBoshqa raqam bilan kirish uchun /start ni bosing.", { 
+            await sendSafeMessage(chatId, "🔄 **Tizimdan chiqildi.**\n\nBoshqa raqam bilan kirish uchun /start ni bosing.", { 
                 parse_mode: "Markdown",
                 reply_markup: { remove_keyboard: true } // Eski keyboardni o'chiramiz (agar qolgan bo'lsa)
             });
@@ -924,41 +984,7 @@ bot.on('callback_query', async (query) => {
     }
 
     else if (data === "menu_help") {
-        const helpText = `🧾 **Yordam**
-
-📌 **Funksiyalar:**
-
-💎 **Avto Almaz :**
-Guruhlarda almazli tugmalarni avtomatik bosadi.
-
-Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.
-
-👤 **AvtoUser :**
-🔗 Guruh linki va limitni kiriting.
-
-Guruhdan foydalanuvchilarni userlarini yig'adi va sizga yuboradi maksimal 1000 ta (yuser yig'ish jarayoni vaqt olishi mumkin iltimos sabirli bo'ling).
-
-
-👨‍💼 **Avto reyd :**
-Guruxga yoki berilgan Userga avto xabar yuboradi.
-Matn va Stikerlarni qo'llab quvvatlaydi.
-
-🔗 Guruh linki yoki user va limitni kiriting.
-
-📢 **Avto Reklama :**
-Siz botga yuborgan 100 ta yuserga reklama yuboradi.(unutmang 200 ta yuser yuborsangiz ham faqat ularni 100 tasini oladi )
-
-Userlar va reklama matnini kiriting.
-
-📊 **Profil**
-Sizning statistikangizni ko'rsatadi.
-
-🔄 **Nomer almashtirish**
-Telefon raqamingizni o'zgartirish.
-
-Agar Bot Haqida To'liq Ma'lumot olmoqchi bo'lsangiz murojat qiling : @ortiqov_x7`;
-
-        bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
+        await sendSafeMessage(chatId, HELP_TEXT, { parse_mode: "Markdown" });
     }
 
     // --- REYD HANDLERS ---
