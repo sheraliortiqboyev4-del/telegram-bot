@@ -1288,7 +1288,7 @@ bot.on('message', async (msg) => {
                     console.log(`[${chatId}] Kod so'ralmoqda...`);
                     state.step = 'WAITING_CODE';
                     userStates[chatId] = state;
-                    bot.sendMessage(chatId, "✅ Kod yuborildi! Telegramdan kelgan **kodni** kiriting:", { parse_mode: "Markdown" });
+                    bot.sendMessage(chatId, "✅ Kod yuborildi! Telegramdan kelgan kodni 12.345 ko'rinishida kiriting:", { parse_mode: "Markdown" });
                     return new Promise((resolve) => { loginPromises[chatId].resolveCode = resolve; });
                 },
                 password: async () => {
