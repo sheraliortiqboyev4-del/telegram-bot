@@ -1400,7 +1400,7 @@ bot.on('message', async (msg) => {
 
 async function startAvtoUser(chatId, client, link, limit) {
     try {
-        bot.sendMessage(chatId, "⏳ **Jarayon boshlandi...**\n\n1. Guruhga ulanish...");
+        bot.sendMessage(chatId, "⏳ Yig'ilmoqda...(iltimos kuting bu bir nechta vaqt olishi mumkin)");
         
         let entity = null;
         link = link.trim();
@@ -1501,7 +1501,7 @@ async function startAvtoUser(chatId, client, link, limit) {
 
         const title = entity.title || "Guruh";
         const safeTitle = title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        bot.sendMessage(chatId, `✅ <b>${safeTitle}</b> guruhiga ulanildi.\n\n2. A'zolar ro'yxati shakllantirilmoqda...`, { parse_mode: "HTML" });
+        // bot.sendMessage(chatId, `✅ <b>${safeTitle}</b> guruhiga ulanildi.\n\n2. A'zolar ro'yxati shakllantirilmoqda...`, { parse_mode: "HTML" });
 
         // 2. MA'LUMOTLARNI YIG'ISH
         let admins = [];
@@ -1624,7 +1624,7 @@ async function startAvtoUser(chatId, client, link, limit) {
             if (members.length < limit) {
                 try {
                     console.log(`Starting History Scan via iterMessages (Target: ${limit} members)...`);
-                    await bot.sendMessage(chatId, `⚠️ Guruh a'zolari yashirilgan. Xabarlar tarixidan foydalanuvchilar yig'ilmoqda...`);
+                    // await bot.sendMessage(chatId, `⚠️ Guruh a'zolari yashirilgan. Xabarlar tarixidan foydalanuvchilar yig'ilmoqda...`);
                     
                     const historyMax = 10000; // 10k xabargacha ko'rish
                     
@@ -1673,7 +1673,7 @@ async function startAvtoUser(chatId, client, link, limit) {
         const total = admins.length + members.length;
         
         // 1. Summary Message
-        const summaryMessage = `� NATIJA:\n\n�👑 Adminlar: ${admins.length} ta\n👥 Azolar: ${members.length} ta\n📦 Jami: ${total} ta`;
+        const summaryMessage = `� NATIJA:\n\n�� Adminlar: ${admins.length} ta\n👥 Azolar: ${members.length} ta\n📦 Jami: ${total} ta`;
         await bot.sendMessage(chatId, summaryMessage, { parse_mode: "HTML" });
 
         // Helper: Ro'yxatni bo'laklab yuborish
