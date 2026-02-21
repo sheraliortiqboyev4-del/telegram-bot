@@ -185,102 +185,119 @@ if (!ADMIN_ID) {
 
 // /start komandasi
 bot.onText(/\/start/, async (msg) => {
-    const chatId = msg.chat.id;
-    const name = msg.from.first_name;
-    
-    console.log(`User started: ${name} (${chatId})`);
+    try {
+        const chatId = msg.chat.id;
+        const name = msg.from.first_name || "Foydalanuvchi";
+        const safeName = name.replace(/[*_`\[\]()]/g, '');
+        
+        console.log(`User started: ${name} (${chatId})`);
 
-    let user = await getUser(chatId);
-    
-    // Agar foydalanuvchi Admin bo'lsa, uni avtomatik 'approved' qilamiz
-    if (chatId === ADMIN_ID) {
+        let user = await getUser(chatId);
+        
+        // Agar foydalanuvchi Admin bo'lsa, uni avtomatik 'approved' qilamiz
+        if (ADMIN_ID && chatId.toString() === ADMIN_ID.toString()) {
+            if (!user) {
+                user = await updateUser(chatId, { name, status: 'approved' });
+            } else if (user.status !== 'approved') {
+                user = await updateUser(chatId, { status: 'approved' });
+            }
+            await bot.sendMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
+            return;
+        }
+
+        // To'lov xabari va tugmasi
+        const payMessage = `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`;
+        const payOptions = {
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
+                ]
+            }
+        };
+
         if (!user) {
-            user = await updateUser(chatId, { name, status: 'approved' });
-        } else if (user.status !== 'approved') {
-            user = await updateUser(chatId, { status: 'approved' });
-        }
-        bot.sendMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
-        return;
-    }
-
-    // To'lov xabari va tugmasi
-    const payMessage = `👋 Assalomu alaykum, Hurmatli **${name}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`;
-    const payOptions = {
-        parse_mode: "Markdown",
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
-            ]
-        }
-    };
-
-    if (!user) {
-        // Yangi oddiy foydalanuvchi
-        user = await updateUser(chatId, { name, status: 'pending' });
-        
-        bot.sendMessage(chatId, payMessage, payOptions);
-        
-        // Adminga xabar berish (Inline buttonlar bilan)
-        bot.sendMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)`, {
-            parse_mode: "Markdown",
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "✅ Tasdiqlash", callback_data: `admin_approve_${chatId}` }, { text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }]
-                ]
+            // Yangi oddiy foydalanuvchi
+            user = await updateUser(chatId, { name, status: 'pending' });
+            
+            await bot.sendMessage(chatId, payMessage, payOptions);
+            
+            // Adminga xabar berish (Inline buttonlar bilan)
+            if (ADMIN_ID) {
+                try {
+                    await bot.sendMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${safeName}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)`, {
+                        parse_mode: "Markdown",
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: "✅ Tasdiqlash", callback_data: `admin_approve_${chatId}` }, { text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }]
+                            ]
+                        }
+                    });
+                } catch (e) {
+                    console.error("Admin notification error:", e.message);
+                }
             }
-        });
-        return;
-    }
+            return;
+        }
 
-    if (user.status === 'blocked') {
-        bot.sendMessage(chatId, payMessage, payOptions);
-        return;
-    }
+        if (user.status === 'blocked') {
+            await bot.sendMessage(chatId, payMessage, payOptions);
+            return;
+        }
 
-    if (user.status === 'pending') {
-        bot.sendMessage(chatId, payMessage, payOptions);
-        
-        // Adminga qayta eslatma (Inline buttonlar bilan)
-        bot.sendMessage(ADMIN_ID, `⏳ **Foydalanuvchi hali ham kutmoqda!**\n👤 Ism: ${name}\n🆔 ID: \`${chatId}\`\nStatus: Pending`, {
-            parse_mode: "Markdown",
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "✅ Tasdiqlash", callback_data: `admin_approve_${chatId}` }, { text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }]
-                ]
+        if (user.status === 'pending') {
+            await bot.sendMessage(chatId, payMessage, payOptions);
+            
+            // Adminga qayta eslatma (Inline buttonlar bilan)
+            if (ADMIN_ID) {
+                try {
+                    await bot.sendMessage(ADMIN_ID, `⏳ **Foydalanuvchi hali ham kutmoqda!**\n👤 Ism: ${safeName}\n🆔 ID: \`${chatId}\`\nStatus: Pending`, {
+                        parse_mode: "Markdown",
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: "✅ Tasdiqlash", callback_data: `admin_approve_${chatId}` }, { text: "🚫 Bloklash", callback_data: `admin_block_${chatId}` }]
+                            ]
+                        }
+                    });
+                } catch (e) {
+                     console.error("Admin notification error:", e.message);
+                }
             }
-        });
-        return;
-    }
-
-    // Agar tasdiqlangan bo'lsa
-    if (user.status === 'approved') {
-        // Agar allaqachon sessiya bo'lsa
-        if (user.session) {
-             const clicks = user.clicks || 0;
-
-             bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${user.name}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
-                 parse_mode: "Markdown",
-                 ...getMainMenu(chatId)
-             });
-             
-             // Userbotni qayta yuklash (agar o'chib qolgan bo'lsa)
-             if (!userClients[chatId]) {
-                 restoreUserSession(chatId, user.session);
-             }
-             return;
+            return;
         }
 
-        userStates[chatId] = { step: 'WAITING_PHONE' };
-        
-        // Eski promise-larni tozalash
-        if (loginPromises[chatId]) {
-            delete loginPromises[chatId];
-        }
+        // Agar tasdiqlangan bo'lsa
+        if (user.status === 'approved') {
+            // Agar allaqachon sessiya bo'lsa
+            if (user.session) {
+                 const clicks = user.clicks || 0;
 
-        bot.sendMessage(chatId, "✅ Siz tasdiqlangansiz.\n\nTelegram akkauntingizga kirish uchun **telefon raqamingizni** yuboring (masalan: `+998901234567`).", {
-            parse_mode: "Markdown",
-            reply_markup: { remove_keyboard: true }
-        });
+                 await bot.sendMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
+                     parse_mode: "Markdown",
+                     ...getMainMenu(chatId)
+                 });
+                 
+                 // Userbotni qayta yuklash (agar o'chib qolgan bo'lsa)
+                 if (!userClients[chatId]) {
+                     restoreUserSession(chatId, user.session);
+                 }
+                 return;
+            }
+
+            userStates[chatId] = { step: 'WAITING_PHONE' };
+            
+            // Eski promise-larni tozalash
+            if (loginPromises[chatId]) {
+                delete loginPromises[chatId];
+            }
+
+            await bot.sendMessage(chatId, "✅ Siz tasdiqlangansiz.\n\nTelegram akkauntingizga kirish uchun **telefon raqamingizni** yuboring (masalan: `+998901234567`).", {
+                parse_mode: "Markdown",
+                reply_markup: { remove_keyboard: true }
+            });
+        }
+    } catch (e) {
+        console.error("Error in /start command:", e);
     }
 });
 
@@ -1334,19 +1351,34 @@ async function startAvtoUser(chatId, client, link, limit) {
                             entity = result.chats[0];
                         }
                     } catch (e) {
-                        if (e.message && e.message.includes('USER_ALREADY_PARTICIPANT')) {
+                        if (e.message && (e.message.includes('USER_ALREADY_PARTICIPANT') || e.message.includes('ALREADY_PARTICIPANT'))) {
+                            console.log("User already in group. Resolving entity...");
                             // Agar allaqachon a'zo bo'lsa, checkChatInvite orqali ma'lumot olishga harakat qilamiz
                             try {
                                 const check = await client.invoke(new Api.messages.CheckChatInvite({ hash: hash }));
                                 // check.chat bu yerda ChatInvite (title bor) yoki Channel/Chat bo'lishi mumkin
                                 if (check.chat) {
                                     entity = check.chat;
-                                } else {
-                                    // Agar entity olinmasa, shunchaki xabar beramiz
-                                    bot.sendMessage(chatId, "⚠️ Siz allaqachon guruhdasiz, lekin guruh ma'lumotlarini to'liq olib bo'lmadi. Davom etib ko'ramiz...");
+                                } 
+                                
+                                // Agar entity hali ham aniqlanmasa (masalan, ChatInvite qaytsa), dialoglardan qidiramiz
+                                if (!entity && check.title) {
+                                    console.log(`Searching for chat by title: ${check.title}`);
+                                    const dialogs = await client.getDialogs({ limit: 100 });
+                                    const found = dialogs.find(d => d.title === check.title || d.name === check.title);
+                                    if (found) {
+                                        entity = found.entity;
+                                        console.log("Entity found in dialogs:", entity.title);
+                                    }
                                 }
                             } catch (err) {
                                 console.error("CheckInvite error:", err);
+                                // Fallback: Oxirgi dialoglardan qidirib ko'rish
+                                try {
+                                    const dialogs = await client.getDialogs({ limit: 20 });
+                                    // Hash orqali topib bo'lmaydi, lekin eng oxirgi qo'shilgan guruh bo'lishi mumkin emas (chunki oldin qo'shilgan)
+                                    // Bu holatda bizda unikal identifikator yo'q.
+                                } catch (dErr) {}
                             }
                         } else {
                             throw e;
