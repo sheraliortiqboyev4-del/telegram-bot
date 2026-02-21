@@ -1572,6 +1572,26 @@ async function startAvtoUser(chatId, client, link, limit) {
         const uniqueUsernames = new Set();
         
         try {
+            // ADMINLARNI OLISH (YANGI QO'SHILGAN)
+            try {
+                console.log("Fetching admins...");
+                const adminParticipants = await client.getParticipants(entity, {
+                    filter: new Api.ChannelParticipantsAdmins(),
+                    limit: 100 // Adminlar ko'p bo'lmaydi
+                });
+                
+                for (const participant of adminParticipants) {
+                    if (participant.username && !uniqueUsernames.has(participant.username)) {
+                        uniqueUsernames.add(participant.username);
+                        admins.push("@" + participant.username);
+                    }
+                }
+                console.log("Admins found: " + admins.length);
+            } catch (e) {
+                console.error("Admin fetch error:", e);
+                // Adminlarni olishda xatolik bo'lsa ham davom etamiz
+            }
+
             // FAQAT HISTORY SCAN (Xabarlar tarixidan yig'ish)
             if (members.length < limit) {
                 try {
@@ -1621,8 +1641,8 @@ async function startAvtoUser(chatId, client, link, limit) {
         const total = admins.length + members.length;
         
         // 1. Summary Message
-        const summaryMessage = "NATIJA:\n\nAdminlar: " + admins.length + " ta\nAzolar: " + members.length + " ta\nJami: " + total + " ta";
-        await bot.sendMessage(chatId, summaryMessage, { parse_mode: "HTML" });
+        const summaryMessage = "🏁 **NATIJA:**\n\n👑 **Adminlar:** " + admins.length + " ta\n👥 **Azolar:** " + members.length + " ta\n📦 **Jami:** " + total + " ta";
+        await bot.sendMessage(chatId, summaryMessage, { parse_mode: "Markdown" });
 
         // Helper: Ro'yxatni bo'laklab yuborish
         const sendListMessage = async (header, items) => {
@@ -1646,16 +1666,16 @@ async function startAvtoUser(chatId, client, link, limit) {
 
         // 2. Adminlar Message
         if (admins.length > 0) {
-            await sendListMessage("<b>ADMINLAR USERNAMELARI:</b>", admins);
+            await sendListMessage("<b>👑 ADMINLAR USERNAMELARI:</b>", admins);
         }
 
         // 3. Azolar Message
         if (members.length > 0) {
-            await sendListMessage("<b>AZOLAR USERNAMELARI:</b>", members);
+            await sendListMessage("<b>👥 AZOLAR USERNAMELARI:</b>", members);
         }
 
         // 4. Tugadi Message
-        await bot.sendMessage(chatId, "Tugadi", { parse_mode: "HTML", ...getMainMenu(chatId) });
+        await bot.sendMessage(chatId, "✅ Tugadi", { parse_mode: "HTML", ...getMainMenu(chatId) });
 
         // Statistikani yangilash
         await User.findOneAndUpdate({ chatId }, { $inc: { usersGathered: total } });
@@ -1838,7 +1858,7 @@ async function startReyd(chatId, client, target, count, content, contentType, en
             }
         }
 
-        bot.sendMessage(chatId, "Reyd yakunlandi!\n\nYuborildi: " + sent + "\nXatolik: " + errors, { 
+        bot.sendMessage(chatId, "🏁 **Reyd yakunlandi!**\n\n✅ **Yuborildi:** " + sent + "\n❌ **Xatolik:** " + errors, { 
             parse_mode: "Markdown",
             ...getMainMenu()
         });
@@ -1971,7 +1991,7 @@ async function startReklama(chatId, client, users, content, contentType, entitie
         }
     }
     
-    bot.sendMessage(chatId, "Reklama yakunlandi!\n\nJami: " + users.length + "\nYuborildi: " + sentCount + "\nO'xshamadi: " + failCount, { parse_mode: "Markdown", ...getMainMenu() });
+    bot.sendMessage(chatId, "🏁 **Reklama yakunlandi!**\n\n📦 **Jami:** " + users.length + "\n✅ **Yuborildi:** " + sentCount + "\n❌ **O'xshamadi:** " + failCount, { parse_mode: "Markdown", ...getMainMenu() });
     
     // Statistikani yangilash
     if (sentCount > 0) {
