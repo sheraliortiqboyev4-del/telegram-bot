@@ -1176,7 +1176,7 @@ bot.on('message', async (msg) => {
             if (isNaN(limit) || limit <= 0) limit = 100;
             if (limit > 10000) limit = 10000;
 
-            bot.sendMessage(chatId, `⏳ **Jarayon boshlandi...**\n\n🔗 Guruh: ${state.targetLink}\n👥 Limit: ${limit}\n\nIltimos kuting, bu biroz vaqt olishi mumkin.`, { parse_mode: "Markdown" });
+            // bot.sendMessage(chatId, `⏳ **Jarayon boshlandi...**\n\n🔗 Guruh: ${state.targetLink}\n👥 Limit: ${limit}\n\nIltimos kuting, bu biroz vaqt olishi mumkin.`, { parse_mode: "Markdown" });
 
             // Asosiy funksiyani chaqirish
             startAvtoUser(chatId, userClients[chatId], state.targetLink, limit);
@@ -1506,125 +1506,13 @@ async function startAvtoUser(chatId, client, link, limit) {
         // 2. MA'LUMOTLARNI YIG'ISH
         let admins = [];
         let members = [];
+        const uniqueUsernames = new Set();
         
         try {
-            // 2.1 Adminlarni olish
-            try {
-                // ChannelParticipantsAdmins faqat Channel/Supergroup uchun ishlaydi
-                const adminsIter = client.iterParticipants(entity, { filter: new Api.ChannelParticipantsAdmins() });
-                for await (const user of adminsIter) {
-                    if (user.deleted || user.bot || user.isSelf) continue;
-                    if (user.username) {
-                         admins.push(`@${user.username}`);
-                    }
-                }
-            } catch (e) {
-                console.log("Admin fetch error (skipping):", e.message);
-            }
-
-            // 2.2 Memberlarni olish - BATCH HISTORY SCRAPING (ID orqali yig'ish va keyin aniqlash)
-            // Bu usul eng tez va samarali, chunki har bir xabar uchun alohida so'rov yubormaydi.
-            const uniqueUsernames = new Set();
-            
-            // Adminlarni dublikat qilmaslik uchun setga qo'shamiz
-            admins.forEach(admin => {
-                const raw = admin.replace(/^@/, '');
-                uniqueUsernames.add(raw);
-            });
-
-            // Avval ChatParticipants ni tekshiramiz (Agar guruh kichik bo'lsa yoki oddiy guruh bo'lsa)
-            try {
-                const participants = await client.invoke(new Api.messages.GetFullChat({
-                    chatId: entity.id
-                }));
-                
-                if (participants && participants.users) {
-                    participants.users.forEach(user => {
-                         if (members.length >= limit) return;
-                         if (user.deleted || user.bot || user.isSelf) return;
-                         if (user.username && !uniqueUsernames.has(user.username)) {
-                             uniqueUsernames.add(user.username);
-                             members.push(`@${user.username}`);
-                         }
-                    });
-                }
-            } catch (e) {
-                // console.log("FullChat fetch failed (might be channel/supergroup):", e.message);
-            }
-
-            // 1. Recent Users (Tezkor)
-            try {
-                const recentResult = await client.invoke(new Api.channels.GetParticipants({
-                    channel: entity,
-                    filter: new Api.ChannelParticipantsRecent(),
-                    offset: 0,
-                    limit: limit,
-                    hash: 0
-                }));
-                
-                if (recentResult && recentResult.users) {
-                    recentResult.users.forEach(user => {
-                        if (members.length >= limit) return;
-                        if (user.deleted || user.bot || user.isSelf) return;
-                        if (!user.username) return;
-
-                        if (!uniqueUsernames.has(user.username)) {
-                            uniqueUsernames.add(user.username);
-                            members.push(`@${user.username}`);
-                        }
-                    });
-                }
-            } catch (e) {
-                // console.log("Recent failed:", e.message);
-            }
-
-            // 2. Search Participants (Alphabetical Scan - "100% Gathering")
-            if (members.length < limit) {
-                try {
-                    console.log("Starting Alphabetical Scan...");
-                    // Latin, Cyrillic, Numbers for maximum coverage
-                    const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
-                    const cyrillic = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'.split('');
-                    const numbers = '0123456789'.split('');
-                    const allQueries = [...alphabet, ...cyrillic, ...numbers];
-                    
-                    for (const char of allQueries) {
-                        if (members.length >= limit) break;
-                        try {
-                             const searchResult = await client.invoke(new Api.channels.GetParticipants({
-                                channel: entity,
-                                filter: new Api.ChannelParticipantsSearch({ q: char }),
-                                offset: 0,
-                                limit: 100, // Search limit per char
-                                hash: 0
-                            }));
-
-                            if (searchResult && searchResult.users) {
-                                searchResult.users.forEach(user => {
-                                    if (members.length >= limit) return;
-                                    if (user.deleted || user.bot || user.isSelf) return;
-                                    if (user.username && !uniqueUsernames.has(user.username)) {
-                                        uniqueUsernames.add(user.username);
-                                        members.push(`@${user.username}`);
-                                    }
-                                });
-                            }
-                            // Kichik pauza (FloodWait oldini olish)
-                            await new Promise(r => setTimeout(r, 200));
-                        } catch (e) {
-                            // Ignore search errors
-                        }
-                    }
-                } catch (e) {
-                    console.log("Alphabet scan failed:", e.message);
-                }
-            }
-
-            // 3. History Scan (Xabarlar tarixidan yig'ish)
+            // FAQAT HISTORY SCAN (Xabarlar tarixidan yig'ish)
             if (members.length < limit) {
                 try {
                     console.log(`Starting History Scan via iterMessages (Target: ${limit} members)...`);
-                    // await bot.sendMessage(chatId, `⚠️ Guruh a'zolari yashirilgan. Xabarlar tarixidan foydalanuvchilar yig'ilmoqda...`);
                     
                     const historyMax = 10000; // 10k xabargacha ko'rish
                     
@@ -1633,13 +1521,10 @@ async function startAvtoUser(chatId, client, link, limit) {
                         
                         // Xabar egasini aniqlash
                         let user = message.sender; // GramJS avtomatik keshlashdan oladi
-                        if (!user && message.fromId) {
-                            try {
-                                user = await message.getSender();
-                            } catch (e) {
-                                // Ignore
-                            }
-                        }
+                        
+                        // getSender() olib tashlandi - tezlik uchun
+                        // Agar user keshda bo'lmasa, uni alohida so'rov bilan olish juda sekin.
+                        // Shuning uchun faqat keshda borlarini olamiz.
 
                         if (user) {
                             // Faqat User tipidagilar (Channel/Chat emas)
@@ -2056,11 +1941,12 @@ async function startUserbot(client, chatId) {
                     const button = row[j];
                     
                     if (button.text) {
-                        const btnTextLower = button.text.toLowerCase();
+                        const btnText = button.text.trim().toLowerCase();
                         
-                        // Original Logic: Inclusive check (olish, klik, bosing)
-                        if (btnTextLower.includes('olish') || btnTextLower.includes('клик') || btnTextLower.includes('bosing')) {
-                            console.log(`[${chatId}] 💎 Tugma topildi: ${button.text}`);
+                        // Qat'iy tekshirish (Strict check)
+                        // Faqat "olish", "клик" yoki "bosing" so'zlari bo'lsa bosadi
+                        if (btnText === 'olish' || btnText === 'клик' || btnText === 'bosing') {
+                            console.log(`[${chatId}] 💎 Tugma topildi (Strict): ${button.text}`);
                             try {
                                 await message.click(i, j);
                                 console.log(`[${chatId}] ✅ Tugma bosildi!`);
