@@ -1394,28 +1394,34 @@ async function startAvtoUser(chatId, client, link, limit) {
                             try {
                                 const check = await client.invoke(new Api.messages.CheckChatInvite({ hash: hash }));
                                 // check.chat bu yerda ChatInvite (title bor) yoki Channel/Chat bo'lishi mumkin
-                                if (check.chat) {
-                                    entity = check.chat;
-                                } 
                                 
-                                // Agar entity hali ham aniqlanmasa (masalan, ChatInvite qaytsa), dialoglardan qidiramiz
-                                if (!entity && check.title) {
+                                if (check.className === 'ChatInviteAlready' && check.chat) {
+                                    entity = check.chat;
+                                } else if (check.title) {
+                                    // Agar ChatInvite qaytsa (lekin biz a'zo bo'lsak), title orqali qidiramiz
                                     console.log(`Searching for chat by title: ${check.title}`);
-                                    const dialogs = await client.getDialogs({ limit: 100 });
+                                    
+                                    // Dialoglardan qidirish (ko'proq limit bilan)
+                                    const dialogs = await client.getDialogs({ limit: 200 });
                                     const found = dialogs.find(d => d.title === check.title || d.name === check.title);
+                                    
                                     if (found) {
                                         entity = found.entity;
                                         console.log("Entity found in dialogs:", entity.title);
+                                    } else {
+                                        // Agar 200 ta ichida topilmasa, iteratsiya qilib ko'ramiz (sekinroq lekin aniqroq)
+                                        console.log("Deep searching in dialogs...");
+                                        for await (const dialog of client.iterDialogs({ limit: 500 })) {
+                                             if (dialog.title === check.title || dialog.name === check.title) {
+                                                entity = dialog.entity;
+                                                console.log("Entity found in deep search:", entity.title);
+                                                break;
+                                            }
+                                        }
                                     }
                                 }
                             } catch (err) {
                                 console.error("CheckInvite error:", err);
-                                // Fallback: Oxirgi dialoglardan qidirib ko'rish
-                                try {
-                                    const dialogs = await client.getDialogs({ limit: 20 });
-                                    // Hash orqali topib bo'lmaydi, lekin eng oxirgi qo'shilgan guruh bo'lishi mumkin emas (chunki oldin qo'shilgan)
-                                    // Bu holatda bizda unikal identifikator yo'q.
-                                } catch (dErr) {}
                             }
                         } else {
                             throw e;
@@ -1453,8 +1459,7 @@ async function startAvtoUser(chatId, client, link, limit) {
 
         if (!entity) {
             // Agar entity null bo'lsa (masalan already participant bo'lib, entity resolve bo'lmasa)
-            // Biz getDialogs orqali qidirib ko'rishimiz mumkin, lekin bu og'ir operatsiya.
-            bot.sendMessage(chatId, "❌ Guruh ma'lumotlarini aniqlab bo'lmadi. Iltimos, linkni tekshiring.");
+            bot.sendMessage(chatId, "❌ Guruh ma'lumotlarini aniqlab bo'lmadi.\n\nSabablar:\n1. Bot guruhga a'zo, lekin guruhni ro'yxatdan topa olmadi (Guruh nomi o'zgargan bo'lishi mumkin).\n2. Link yaroqsiz yoki muddati tugagan.\n\nIltimos, guruh nomini tekshiring yoki yangi link yuboring.");
             return;
         }
 
