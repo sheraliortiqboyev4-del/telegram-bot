@@ -644,19 +644,19 @@ bot.on('callback_query', async (query) => {
             const recentUsers = filteredUsers.slice(-20).reverse(); 
 
             recentUsers.forEach(u => {
-                const statusIcon = u.status === 'approved' ? 'OK' : (u.status === 'blocked' ? 'NO' : 'WT');
+                const statusIcon = u.status === 'approved' ? '✅' : (u.status === 'blocked' ? '⛔️' : '⏳');
 
                 
                 if (u.status === 'pending') {
-                    listMessage += "👉 /approve_" + u.chatId + " | /block_" + u.chatId + "\n"; 
+                    listMessage += "👤 `" + u.chatId + "` " + statusIcon + "\n   👉 /approve_" + u.chatId + " | /block_" + u.chatId + "\n"; 
                 } else if (u.status === 'approved') {
-                    listMessage += "👉 /block_" + u.chatId + "\n";
+                    listMessage += "👤 `" + u.chatId + "` " + statusIcon + "\n   👉 /block_" + u.chatId + "\n";
                 } else if (u.status === 'blocked') {
-                    listMessage += "👉 /unblock_" + u.chatId + "\n";
+                    listMessage += "👤 `" + u.chatId + "` " + statusIcon + "\n   👉 /unblock_" + u.chatId + "\n";
                 }
             });
             
-            listMessage += "\njami: " + filteredUsers.length + " ta";
+            listMessage += "\n📊 **Jami:** " + filteredUsers.length + " ta";
 
             try {
                 await bot.editMessageText(listMessage, {
@@ -748,7 +748,7 @@ bot.on('callback_query', async (query) => {
              const statusText = isActive ? "[ON] Yoqilgan" : "[OFF] O'chirilgan";
              const btnText = isActive ? "[OFF] O'chirish" : "[ON] Yoqish";
 
-             bot.sendMessage(chatId, "**Avto Almaz**\n\nBot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\nHolati: " + statusText, { 
+             bot.sendMessage(chatId, "💎 **Avto Almaz**\n\n🤖 Bot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\n⚙️ **Holati:** " + statusText, { 
                  parse_mode: "Markdown",
                  reply_markup: {
                      inline_keyboard: [
@@ -769,11 +769,11 @@ bot.on('callback_query', async (query) => {
         avtoAlmazStates[chatId] = !avtoAlmazStates[chatId];
         
         const isActive = avtoAlmazStates[chatId];
-        const statusText = isActive ? "[ON] Yoqilgan" : "[OFF] O'chirilgan";
-        const btnText = isActive ? "[OFF] O'chirish" : "[ON] Yoqish";
+        const statusText = isActive ? "✅ Yoqilgan" : "❌ O'chirilgan";
+        const btnText = isActive ? "❌ O'chirish" : "✅ Yoqish";
         
         try {
-            await bot.editMessageText("**Avto Almaz**\n\nBot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\nHolati: " + statusText, {
+            await bot.editMessageText("💎 **Avto Almaz**\n\n🤖 Bot guruhlardagi 'Olish' tugmalarini o'zi bosadi.\n\n⚙️ **Holati:** " + statusText, {
                 chat_id: chatId,
                 message_id: messageId,
                 parse_mode: "Markdown",
@@ -842,21 +842,21 @@ bot.on('callback_query', async (query) => {
             bot.sendMessage(chatId, "[X] Siz ro'yxatdan o'tmagansiz. /start ni bosing.");
             return;
         }
-        const statusIcon = user.status === 'approved' ? '[OK] Tasdiqlangan' : (user.status === 'blocked' ? '[NO] Bloklangan' : '[WT] Kutilmoqda');
-        const sessionStatus = userClients[chatId] ? '[ON] Onlayn' : '[OFF] Offlayn';
+        const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
+        const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
         
-        let message = "**Sizning Profilingiz:**\n\n";
-        message += "Ism: " + escapeMarkdown(user.name) + "\n";
-        message += "ID: " + user.chatId + "\n";
-        message += "Holat: " + statusIcon + "\n";
-        message += "Sessiya: " + sessionStatus + "\n\n";
+        let message = "👤 **Sizning Profilingiz:**\n\n";
+        message += "📛 **Ism:** " + escapeMarkdown(user.name) + "\n";
+        message += "🆔 **ID:** `" + user.chatId + "`\n";
+        message += "🔰 **Holat:** " + statusIcon + "\n";
+        message += "🔌 **Sessiya:** " + sessionStatus + "\n\n";
         
-        message += "Reydlar soni: " + (user.reydCount || 0) + " ta\n";
-        message += "Yig'ilgan userlar: " + (user.usersGathered || 0) + " ta\n";
-        message += "Yuborilgan reklamalar: " + (user.adsCount || 0) + " ta\n";
-        message += "To'plangan almazlar: " + (user.clicks || 0) + " ta\n\n";
+        message += "⚔️ **Reydlar soni:** " + (user.reydCount || 0) + " ta\n";
+        message += "👥 **Yig'ilgan userlar:** " + (user.usersGathered || 0) + " ta\n";
+        message += "📢 **Yuborilgan reklamalar:** " + (user.adsCount || 0) + " ta\n";
+        message += "💎 **To'plangan almazlar:** " + (user.clicks || 0) + " ta\n\n";
 
-        message += "Ro'yxatdan o'tgan sana: " + new Date(user.joinedAt).toLocaleDateString();
+        message += "📅 **Ro'yxatdan o'tgan sana:** " + new Date(user.joinedAt).toLocaleDateString();
 
         // Agar eski xabar bo'lsa edit qilamiz, aks holda yangi jo'natamiz
         try {
@@ -901,21 +901,21 @@ bot.on('callback_query', async (query) => {
         const user = await getUser(chatId);
         if (!user) return;
 
-        const statusIcon = user.status === 'approved' ? '[OK] Tasdiqlangan' : (user.status === 'blocked' ? '[NO] Bloklangan' : '[WT] Kutilmoqda');
-        const sessionStatus = userClients[chatId] ? '[ON] Onlayn' : '[OFF] Offlayn';
+        const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
+        const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
         
-        let message = "**Sizning Profilingiz:**\n\n";
-        message += "Ism: " + escapeMarkdown(user.name) + "\n";
-        message += "ID: " + user.chatId + "\n";
-        message += "Holat: " + statusIcon + "\n";
-        message += "Sessiya: " + sessionStatus + "\n\n";
+        let message = "👤 **Sizning Profilingiz:**\n\n";
+        message += "📛 **Ism:** " + escapeMarkdown(user.name) + "\n";
+        message += "🆔 **ID:** `" + user.chatId + "`\n";
+        message += "🔰 **Holat:** " + statusIcon + "\n";
+        message += "🔌 **Sessiya:** " + sessionStatus + "\n\n";
         
-        message += "Reydlar soni: " + (user.reydCount || 0) + " ta\n";
-        message += "Yig'ilgan userlar: " + (user.usersGathered || 0) + " ta\n";
-        message += "Yuborilgan reklamalar: " + (user.adsCount || 0) + " ta\n";
-        message += "To'plangan almazlar: " + (user.clicks || 0) + " ta\n\n";
+        message += "⚔️ **Reydlar soni:** " + (user.reydCount || 0) + " ta\n";
+        message += "👥 **Yig'ilgan userlar:** " + (user.usersGathered || 0) + " ta\n";
+        message += "📢 **Yuborilgan reklamalar:** " + (user.adsCount || 0) + " ta\n";
+        message += "💎 **To'plangan almazlar:** " + (user.clicks || 0) + " ta\n\n";
 
-        message += "Ro'yxatdan o'tgan sana: " + new Date(user.joinedAt).toLocaleDateString();
+        message += "📅 **Ro'yxatdan o'tgan sana:** " + new Date(user.joinedAt).toLocaleDateString();
 
         try {
             await bot.editMessageText(message, {
