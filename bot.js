@@ -645,14 +645,15 @@ bot.on('callback_query', async (query) => {
 
             recentUsers.forEach(u => {
                 const statusIcon = u.status === 'approved' ? '✅' : (u.status === 'blocked' ? '⛔️' : '⏳');
+                const userName = escapeMarkdown(u.name || "Noma'lum");
 
                 
                 if (u.status === 'pending') {
-                    listMessage += "👤 `" + u.chatId + "` " + statusIcon + "\n   👉 /approve_" + u.chatId + " | /block_" + u.chatId + "\n"; 
+                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon + "\n   👉 /approve_" + u.chatId + " | /block_" + u.chatId + "\n"; 
                 } else if (u.status === 'approved') {
-                    listMessage += "👤 `" + u.chatId + "` " + statusIcon + "\n   👉 /block_" + u.chatId + "\n";
+                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon + "\n   👉 /block_" + u.chatId + "\n";
                 } else if (u.status === 'blocked') {
-                    listMessage += "👤 `" + u.chatId + "` " + statusIcon + "\n   👉 /unblock_" + u.chatId + "\n";
+                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon + "\n   👉 /unblock_" + u.chatId + "\n";
                 }
             });
             
