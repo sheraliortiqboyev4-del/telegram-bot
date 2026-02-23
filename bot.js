@@ -1351,14 +1351,14 @@ bot.on('message', async (msg) => {
                     console.log("[" + chatId + "] Kod so'ralmoqda...");
                     state.step = 'WAITING_CODE';
                     userStates[chatId] = state;
-                    bot.sendMessage(chatId, "Kod yuborildi! Telegramdan kelgan kodni 12.345 ko'rinishida kiriting:", { parse_mode: "Markdown" });
+                    bot.sendMessage(chatId, "✅ Kod yuborildi! Telegramdan kelgan kodni `12345` ko'rinishida kiriting:", { parse_mode: "Markdown" });
                     return new Promise((resolve) => { loginPromises[chatId].resolveCode = resolve; });
                 },
                 password: async () => {
                     console.log("[" + chatId + "] Parol so'ralmoqda...");
                     state.step = 'WAITING_PASSWORD';
                     userStates[chatId] = state;
-                    bot.sendMessage(chatId, "2 Bosqichli parolni yuboring:", { parse_mode: "Markdown" });
+                    bot.sendMessage(chatId, "🔐 2 Bosqichli parolni yuboring:", { parse_mode: "Markdown" });
                     return new Promise((resolve) => { loginPromises[chatId].resolvePassword = resolve; });
                 },
                 onError: async (err) => {
@@ -1375,14 +1375,14 @@ bot.on('message', async (msg) => {
                     } catch (e) { console.error("Disconnect error:", e); }
 
                     if (err.message && err.message.includes('PHONE_CODE_INVALID')) {
-                          bot.sendMessage(chatId, "Kod noto'g'ri kiritildi. Iltimos, **/start** bosib, raqamingizni va yangi kodni qaytadan kiriting.", { parse_mode: "Markdown" });
+                          bot.sendMessage(chatId, "❌ Kod noto'g'ri kiritildi. Iltimos, **/start** bosib, raqamingizni va yangi kodni qaytadan kiriting.", { parse_mode: "Markdown" });
                      } else if (err.message && err.message.includes('PHONE_NUMBER_INVALID')) {
-                          bot.sendMessage(chatId, "Telefon raqam noto'g'ri. /start bosib qayta urinib ko'ring.");
+                          bot.sendMessage(chatId, "❌ Telefon raqam noto'g'ri. /start bosib qayta urinib ko'ring.");
                      } else if (err.message && err.message.includes('wait') && err.message.includes('seconds')) {
                           const seconds = err.message.match(/\d+/)[0];
-                          bot.sendMessage(chatId, "Telegram sizni vaqtincha blokladi. Iltimos, **" + seconds + " soniya** kuting va keyin /start bosing.");
+                          bot.sendMessage(chatId, "⚠️ Telegram sizni vaqtincha blokladi. Iltimos, **" + seconds + " soniya** kuting va keyin /start bosing.");
                      } else {
-                          bot.sendMessage(chatId, "Xatolik yuz berdi: " + err.message + ". /start bosib qayta urinib ko'ring.");
+                          bot.sendMessage(chatId, "❌ Xatolik yuz berdi: " + err.message + ". /start bosib qayta urinib ko'ring.");
                      }
                  },
             }).then(async () => {
@@ -1392,7 +1392,7 @@ bot.on('message', async (msg) => {
                 // Bazaga sessiyani saqlash
                 await updateUser(chatId, { session: session });
                 
-                bot.sendMessage(chatId, "**Muvaffaqiyatli kirdingiz!** Userbot ishga tushdi.", { parse_mode: "Markdown" });
+                bot.sendMessage(chatId, "✅ **Muvaffaqiyatli kirdingiz!** Userbot ishga tushdi 🚀.", { parse_mode: "Markdown" });
                 
                 state.step = 'LOGGED_IN';
                 userStates[chatId] = state;
@@ -1418,9 +1418,9 @@ bot.on('message', async (msg) => {
                      bot.sendMessage(chatId, "❌ Kod noto'g'ri. Qaytadan /start bosing.");
                  } else if (e.message.includes('wait') && e.message.includes('seconds')) {
                     const seconds = e.message.match(/\d+/)[0];
-                    bot.sendMessage(chatId, "Telegram sizni vaqtincha blokladi. Iltimos, **" + seconds + " soniya** kuting va keyin /start bosing.");
+                    bot.sendMessage(chatId, "⚠️ Telegram sizni vaqtincha blokladi. Iltimos, **" + seconds + " soniya** kuting va keyin /start bosing.");
                 } else {
-                    bot.sendMessage(chatId, "Xatolik: " + e.message + ". /start ni bosing.");
+                    bot.sendMessage(chatId, "❌ Xatolik: " + e.message + ". /start ni bosing.");
                 }
            });
        }
@@ -1454,7 +1454,7 @@ bot.on('message', async (msg) => {
     } catch (error) {
         console.error("Umumiy xatolik:", error);
         const chatId = msg.chat.id;
-        bot.sendMessage(chatId, "Xatolik: " + error.message);
+        bot.sendMessage(chatId, "❌ Xatolik: " + error.message);
     }
 });
 
@@ -1463,7 +1463,7 @@ bot.on('message', async (msg) => {
 
 async function startAvtoUser(chatId, client, link, limit) {
     try {
-        bot.sendMessage(chatId, "⏳ Yig'ilmoqda...(iltimos kuting bu bir nechta vaqt olishi mumkin)");
+        bot.sendMessage(chatId, "⏳ **Yig'ilmoqda...**\n(Iltimos kuting, bu biroz vaqt olishi mumkin)", { parse_mode: "Markdown" });
         
         let entity = null;
         link = link.trim();
@@ -1551,7 +1551,7 @@ async function startAvtoUser(chatId, client, link, limit) {
             }
         } catch (e) {
             console.error("Join error:", e);
-            bot.sendMessage(chatId, "Xatolik: Guruhga kirib bo'lmadi.\nLink noto'g'ri yoki bot spamga tushgan bo'lishi mumkin.\n\nDetal: " + e.message);
+            bot.sendMessage(chatId, "❌ **Xatolik:** Guruhga kirib bo'lmadi.\nLink noto'g'ri yoki bot spamga tushgan bo'lishi mumkin.\n\nDetal: " + e.message, { parse_mode: "Markdown" });
             return;
         }
 
@@ -1628,7 +1628,7 @@ async function startAvtoUser(chatId, client, link, limit) {
             }
         } catch (e) {
             console.error("Member fetch error:", e);
-            bot.sendMessage(chatId, "A'zolarni olishda xatolik: " + e.message);
+            bot.sendMessage(chatId, "❌ A'zolarni olishda xatolik: " + e.message);
             return;
         }
 
@@ -1675,14 +1675,14 @@ async function startAvtoUser(chatId, client, link, limit) {
         }
 
         // 4. Tugadi Message
-        await bot.sendMessage(chatId, "✅ Tugadi", { parse_mode: "HTML", ...getMainMenu(chatId) });
+        await bot.sendMessage(chatId, "✅ **Jarayon yakunlandi.** Barcha foydalanuvchilar ro'yxati yuqorida.", { parse_mode: "Markdown", ...getMainMenu(chatId) });
 
         // Statistikani yangilash
         await User.findOneAndUpdate({ chatId }, { $inc: { usersGathered: total } });
 
     } catch (err) {
         console.error("General AvtoUser error:", err);
-        bot.sendMessage(chatId, "Kutilmagan xatolik: " + err.message);
+        bot.sendMessage(chatId, "❌ Kutilmagan xatolik: " + err.message);
     }
 }
 
@@ -1770,11 +1770,11 @@ async function startReyd(chatId, client, target, count, content, contentType, en
             }
         } catch (e) {
             console.error("Target resolve error:", e);
-            bot.sendMessage(chatId, "Guruhni aniqlab bo'lmadi yoki qo'shilib bo'lmadi: " + e.message);
+            bot.sendMessage(chatId, "❌ Guruhni aniqlab bo'lmadi yoki qo'shilib bo'lmadi: " + e.message);
             // Davom etishga harakat qilamiz (balki target to'g'ridir)
         }
 
-        bot.sendMessage(chatId, "Reyd boshlanmoqda: " + target + " ga " + count + " ta xabar.");
+        bot.sendMessage(chatId, "🚀 **Reyd boshlanmoqda:** " + target + " ga " + count + " ta xabar.", { parse_mode: "Markdown" });
 
         for (let i = 0; i < count; i++) {
             // Check status
@@ -1816,7 +1816,7 @@ async function startReyd(chatId, client, target, count, content, contentType, en
                 // FloodWait xatoligini avtomatik hal qilish
                 if (e.seconds) {
                     const waitTime = e.seconds;
-                    bot.sendMessage(chatId, "Telegram cheklovi (FloodWait): " + waitTime + " sekund kuting...");
+                    bot.sendMessage(chatId, "⚠️ Telegram cheklovi (FloodWait): " + waitTime + " sekund kuting...");
                     // Kutish vaqti
                     await new Promise(resolve => setTimeout(resolve, (waitTime + 2) * 1000));
                     // Xabarni qayta yuborish uchun i ni bittaga kamaytiramiz
@@ -1829,14 +1829,14 @@ async function startReyd(chatId, client, target, count, content, contentType, en
                      // Raqamni ajratib olishga harakat qilamiz
                      const match = e.message.match(/\d+/);
                      const waitTime = match ? parseInt(match[0]) : 60;
-                     bot.sendMessage(chatId, "Telegram cheklovi (FloodWait): " + waitTime + " sekund kuting...");
+                     bot.sendMessage(chatId, "⚠️ Telegram cheklovi (FloodWait): " + waitTime + " sekund kuting...");
                      await new Promise(resolve => setTimeout(resolve, (waitTime + 2) * 1000));
                      i--;
                      continue;
                 }
 
                 if (e.message && e.message.includes('PEER_FLOOD')) {
-                    bot.sendMessage(chatId, "Telegram cheklovi (Spam/Peer Flood). Reyd to'xtatildi.");
+                    bot.sendMessage(chatId, "🚫 Telegram cheklovi (Spam/Peer Flood). Reyd to'xtatildi.");
                     break;
                 }
             }
@@ -1871,7 +1871,7 @@ async function startReyd(chatId, client, target, count, content, contentType, en
     } catch (e) {
         console.error("Reyd fatal error:", e);
         if (reydSessions[chatId]) delete reydSessions[chatId];
-        bot.sendMessage(chatId, "Reyd xatolik bilan tugadi: " + e.message);
+        bot.sendMessage(chatId, "❌ Reyd xatolik bilan tugadi: " + e.message);
     }
 }
 
@@ -1960,7 +1960,7 @@ async function startReklama(chatId, client, users, content, contentType, entitie
                 reklamaSessions[chatId].errorState = true;
                 reklamaSessions[chatId].currentIndex = i; // Shu yerdan davom ettiramiz
                 
-                bot.sendMessage(chatId, "DIQQAT! Telegram sizni vaqtincha spam qildi.\nReklama vaqtincha to'xtatildi.\n\nDavom ettirish yoki tugatishni tanlang:", {
+                bot.sendMessage(chatId, "🚫 **DIQQAT!** Telegram sizni vaqtincha spam qildi.\n⏸ Reklama vaqtincha to'xtatildi.\n\nDavom ettirish yoki tugatishni tanlang:", {
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: "▶️ Davom ettirish", callback_data: "rek_resume" }, { text: "⏹ Tugatish", callback_data: "rek_stop" }]
@@ -2049,7 +2049,7 @@ async function startUserbot(client, chatId) {
                                     console.error("Chat title error:", e);
                                 }
 
-                                bot.sendMessage(chatId, "Avto Almaz: 1 almaz olindi\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" });
+                                bot.sendMessage(chatId, "💎 **Avto Almaz:** 1 almaz olindi 💎\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" });
                                 
                                 break;
                             } catch (err) {
@@ -2077,7 +2077,7 @@ async function restoreUserSession(chatId, sessionString) {
         console.log("Userbot " + chatId + " qayta tiklandi.");
     } catch (e) {
         console.error("Sessiyani tiklashda xatolik (" + chatId + "):", e);
-        bot.sendMessage(chatId, "⚠️ Sessiyangiz eskirgan bo'lishi mumkin. Iltimos, /start bosib qaytadan kiring.");
+        bot.sendMessage(chatId, "⚠️ **Sessiyangiz eskirgan bo'lishi mumkin.** Iltimos, /start bosib qaytadan kiring.");
         await updateUser(chatId, { session: null }); // Sessiyani o'chirish
     }
 }
