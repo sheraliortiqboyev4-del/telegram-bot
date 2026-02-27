@@ -1237,7 +1237,7 @@ bot.on('message', async (msg) => {
         if (state.step === 'WAITING_AVTOUSER_LIMIT') {
             let limit = parseInt(text.replace(/\D/g, ''));
             if (isNaN(limit) || limit <= 0) limit = 100;
-            if (limit > 10000) limit = 10000;
+            if (limit > 100000) limit = 100000;
 
             // Process started...
 
@@ -1492,30 +1492,32 @@ async function startAvtoUser(chatId, client, link, limit) {
                             // Agar allaqachon a'zo bo'lsa, checkChatInvite orqali ma'lumot olishga harakat qilamiz
                             try {
                                 const check = await client.invoke(new Api.messages.CheckChatInvite({ hash: hash }));
-                                // check.chat bu yerda ChatInvite (title bor) yoki Channel/Chat bo'lishi mumkin
                                 
                                 if (check.className === 'ChatInviteAlready' && check.chat) {
                                     entity = check.chat;
+                                    console.log("Entity resolved directly from ChatInviteAlready");
+                                } else if (check.chat && (check.chat.className === 'Chat' || check.chat.className === 'Channel')) {
+                                    // Ba'zan ChatInvite ichida to'liq chat bo'lishi mumkin
+                                    entity = check.chat;
+                                    console.log("Entity resolved from ChatInvite.chat");
                                 } else if (check.title) {
-                                    // Agar ChatInvite qaytsa (lekin biz a'zo bo'lsak), title orqali qidiramiz
                                     console.log("Searching for chat by title: " + check.title);
                                     
                                     // Dialoglardan qidirish (ko'proq limit bilan)
-                                    const dialogs = await client.getDialogs({ limit: 200 });
-                                    const found = dialogs.find(d => d.title === check.title || d.name === check.title);
-                                    
-                                    if (found) {
-                                        entity = found.entity;
-                                        console.log("Entity found in dialogs:", entity.title);
-                                    } else {
-                                        // Agar 200 ta ichida topilmasa, iteratsiya qilib ko'ramiz (sekinroq lekin aniqroq)
-                                        console.log("Deep searching in dialogs...");
-                                        for await (const dialog of client.iterDialogs({ limit: 500 })) {
-                                             if (dialog.title === check.title || dialog.name === check.title) {
-                                                entity = dialog.entity;
-                                                console.log("Entity found in deep search:", entity.title);
-                                                break;
-                                            }
+                                    // Barcha dialoglarni ko'rib chiqamiz (limit: undefined)
+                                    console.log("Deep searching in ALL dialogs...");
+                                    for await (const dialog of client.iterDialogs({})) {
+                                        // console.log("Checking dialog: " + dialog.title);
+                                        if (dialog.title === check.title || dialog.name === check.title) {
+                                            entity = dialog.entity;
+                                            console.log("Entity found in deep search:", entity.title);
+                                            break;
+                                        }
+                                        // Qo'shimcha tekshiruv: agar dialog ID si check.chat.id ga teng bo'lsa (agar check.chat bo'lsa)
+                                        if (check.chat && (dialog.id && dialog.id.toString() === check.chat.id.toString())) {
+                                            entity = dialog.entity;
+                                            console.log("Entity found by ID match:", entity.title);
+                                            break;
                                         }
                                     }
                                 }
@@ -1598,7 +1600,7 @@ async function startAvtoUser(chatId, client, link, limit) {
                 try {
                     console.log("Starting History Scan via iterMessages (Target: " + limit + " members)...");
                     
-                    const historyMax = 10000; // 10k xabargacha ko'rish
+                    const historyMax = 100000; // 100k xabargacha ko'rish
                     
                     for await (const message of client.iterMessages(entity, { limit: historyMax })) {
                         if (members.length >= limit) break;
