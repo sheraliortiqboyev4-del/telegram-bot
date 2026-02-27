@@ -1686,9 +1686,55 @@ async function startAvtoUser(chatId, client, link, limit) {
                 // Adminlarni olishda xatolik bo'lsa ham davom etamiz
             }
 
-            // FAQAT HISTORY SCAN (Xabarlar tarixidan yig'ish)
-            if (members.length < limit) {
+            // A'ZOLARNI TEZKOR OLISH (iterParticipants - YANGI USUL)
+            try {
+                if (members.length < limit) {
+                    console.log("Starting Fast Scan via iterParticipants...");
+                    bot.sendMessage(chatId, "⚡️ **Tezkor qidiruv** (a'zolar ro'yxati) ishga tushdi...");
+
+                    let batchMembers = [];
+                    // limit * 2 qilamiz, chunki username yo'qlar ham kelishi mumkin
+                    for await (const user of client.iterParticipants(entity, { limit: limit * 2 })) {
+                        if (totalSentMembers + members.length >= limit) break;
+
+                        if (user && !user.deleted && !user.bot && !user.isSelf) {
+                            if (user.username && !uniqueUsernames.has(user.username)) {
+                                uniqueUsernames.add(user.username);
+                                const memberUser = "@" + user.username;
+                                members.push(memberUser);
+                                batchMembers.push(memberUser);
+
+                                // Har 100 ta user yig'ilganda yuborish
+                                if (batchMembers.length >= 100) {
+                                    await sendBatchUsers('member', batchMembers);
+                                    totalSentMembers += batchMembers.length;
+                                    batchMembers = []; // Tozalash
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Qolganlarini yuborish
+                    if (batchMembers.length > 0) {
+                        await sendBatchUsers('member', batchMembers);
+                        totalSentMembers += batchMembers.length;
+                    }
+                    console.log("Fast Scan finished. Found: " + members.length);
+                }
+            } catch (e) {
+                console.log("Fast Scan error (iterParticipants):", e.message);
+                // Xatolik bo'lsa (masalan maxfiy a'zolar), History Scan ga o'tamiz
+            }
+
+            // TARIXDAN QIDIRISH (AGAR YETARLI USER YIG'ILMAGAN BO'LSA)
+            // Agar Fast Scan yetarli natija bermagan bo'lsa (yoki ishlamagan bo'lsa)
+            if (totalSentMembers + members.length < limit) {
                 try {
+                    // Agar allaqachon Fast Scan orqali bir qism user yig'ilgan bo'lsa, xabar bermaymiz
+                    // Faqat Fast Scan umuman user topolmasa xabar beramiz
+                    if (totalSentMembers === 0) {
+                        bot.sendMessage(chatId, "📜 **Tarixdan qidirish** (History Scan) ishga tushdi... (Bu sekinroq bo'lishi mumkin)");
+                    }
                     console.log("Starting History Scan via iterMessages (Target: " + limit + " members)...");
                     
                     const historyMax = 100000; // 100k xabargacha ko'rish
