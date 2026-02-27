@@ -1554,8 +1554,33 @@ async function startAvtoUser(chatId, client, link, limit) {
                     // Qo'shilishga harakat qilamiz
                     await client.invoke(new Api.channels.JoinChannel({ channel: entity }));
                 } catch (e) {
-                    if (e.message && !e.message.includes('USER_ALREADY_PARTICIPANT')) {
-                         console.error("Join public error:", e);
+                    console.error("Join public error:", e);
+                    
+                    // Agar USER_ALREADY_PARTICIPANT bo'lsa yoki getEntity ishlamasa
+                    // Dialoglardan qidirishga harakat qilamiz
+                    if ((e.message && e.message.includes('USER_ALREADY_PARTICIPANT')) || !entity) {
+                         console.log("Searching public group in dialogs: " + username);
+                         let found = false;
+                         
+                         // Username orqali qidirish (dialog name yoki username)
+                         for await (const dialog of client.iterDialogs({})) {
+                             // Dialog title yoki username tekshirish
+                             const dTitle = dialog.title || dialog.name || "";
+                             const dUsername = dialog.entity && dialog.entity.username ? dialog.entity.username : "";
+                             
+                             if (dUsername.toLowerCase() === username.toLowerCase() || dTitle.toLowerCase() === username.toLowerCase()) {
+                                 entity = dialog.entity;
+                                 console.log("Public group found in dialogs:", dTitle);
+                                 found = true;
+                                 break;
+                             }
+                         }
+                         
+                         if (!found) {
+                             // Agar topilmasa, asl xatoni qaytaramiz (agar u user already participant bo'lmasa)
+                             if (e.message && !e.message.includes('USER_ALREADY_PARTICIPANT')) throw e;
+                         }
+                    } else {
                          throw e;
                     }
                 }
@@ -1621,9 +1646,29 @@ async function startAvtoUser(chatId, client, link, limit) {
                     console.log("Starting History Scan via iterMessages (Target: " + limit + " members)...");
                     
                     const historyMax = 100000; // 100k xabargacha ko'rish
+                    let messageCount = 0;
                     
                     for await (const message of client.iterMessages(entity, { limit: historyMax })) {
+                        messageCount++;
                         if (members.length >= limit) break;
+                        
+                        // Progress bar (har 2000 xabarda)
+                        if (messageCount % 2000 === 0) {
+                            try {
+                                const progressMsg = `⏳ **Yig'ilmoqda...**\n\n🔎 Ko'rib chiqildi: ${messageCount} ta xabar\n👥 Topildi: ${members.length} ta user\n\n(Iltimos kuting, bu biroz vaqt olishi mumkin)`;
+                                // Xabarni yangilashga harakat qilamiz (agar iloji bo'lsa)
+                                // Lekin bizda message_id yo'q, shuning uchun shunchaki log qilamiz yoki yangi xabar yuborishimiz mumkin
+                                // Foydalanuvchiga juda ko'p xabar bormasligi uchun, har 5000 tada yangi xabar yuborish ma'qul, 
+                                // lekin edit qilish eng yaxshisi. Afsuski bizda oldingi xabarning ID si saqlanmagan.
+                                // Shuning uchun console log qilamiz.
+                                console.log(`[Progress] ${messageCount} messages scanned, ${members.length} users found.`);
+                                
+                                // Agar 10k dan oshsa va hali ham user kam bo'lsa, userga xabar beramiz
+                                if (messageCount % 10000 === 0) {
+                                     bot.sendMessage(chatId, `🔎 Status: ${messageCount} ta xabar ko'rib chiqildi. ${members.length} ta user topildi. Davom etilmoqda...`);
+                                }
+                            } catch (e) {}
+                        }
                         
                         // Xabar egasini aniqlash
                         let user = message.sender; // GramJS avtomatik keshlashdan oladi
