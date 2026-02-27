@@ -1618,7 +1618,43 @@ async function startAvtoUser(chatId, client, link, limit) {
         let admins = [];
         let members = [];
         const uniqueUsernames = new Set();
+        let totalSentAdmins = 0;
+        let totalSentMembers = 0;
         
+        // Helper: Userlarni guruhlab yuborish
+        const sendBatchUsers = async (type, usersList) => {
+            if (usersList.length === 0) return;
+            
+            const header = type === 'admin' ? "<b>👑 ADMINLAR (Part):</b>" : "<b>👥 AZOLAR (Part):</b>";
+            let message = header + "\n";
+            
+            // Userlarni stringga aylantiramiz
+            const usersStr = usersList.join("\n");
+            
+            // Xabar uzunligini tekshirish (4096)
+            if (message.length + usersStr.length > 4000) {
+                 // Agar juda uzun bo'lsa, bo'lib yuboramiz
+                 const chunks = [];
+                 let currentChunk = "";
+                 
+                 for (const user of usersList) {
+                     if ((currentChunk + "\n" + user).length > 3500) {
+                         chunks.push(currentChunk);
+                         currentChunk = user;
+                     } else {
+                         currentChunk += (currentChunk ? "\n" : "") + user;
+                     }
+                 }
+                 if (currentChunk) chunks.push(currentChunk);
+                 
+                 for (const chunk of chunks) {
+                     await bot.sendMessage(chatId, header + "\n" + chunk, { parse_mode: "HTML" });
+                 }
+            } else {
+                await bot.sendMessage(chatId, message + usersStr, { parse_mode: "HTML" });
+            }
+        };
+
         try {
             // ADMINLARNI OLISH (YANGI QO'SHILGAN)
             try {
@@ -1628,12 +1664,22 @@ async function startAvtoUser(chatId, client, link, limit) {
                     limit: 100 // Adminlar ko'p bo'lmaydi
                 });
                 
+                const newAdmins = [];
                 for (const participant of adminParticipants) {
                     if (participant.username && !uniqueUsernames.has(participant.username)) {
                         uniqueUsernames.add(participant.username);
-                        admins.push("@" + participant.username);
+                        const adminUser = "@" + participant.username;
+                        admins.push(adminUser);
+                        newAdmins.push(adminUser);
                     }
                 }
+                
+                // Adminlarni darhol yuboramiz (agar topilsa)
+                if (newAdmins.length > 0) {
+                    await sendBatchUsers('admin', newAdmins);
+                    totalSentAdmins += newAdmins.length;
+                }
+                
                 console.log("Admins found: " + admins.length);
             } catch (e) {
                 console.error("Admin fetch error:", e);
@@ -1647,36 +1693,20 @@ async function startAvtoUser(chatId, client, link, limit) {
                     
                     const historyMax = 100000; // 100k xabargacha ko'rish
                     let messageCount = 0;
-                    
+                    let batchMembers = []; // Har 100 ta yig'ish uchun vaqtinchalik array
+
                     for await (const message of client.iterMessages(entity, { limit: historyMax })) {
                         messageCount++;
-                        if (members.length >= limit) break;
+                        if (totalSentMembers + members.length >= limit) break; // Jami yuborilgan va hozirgi yig'ilganlar
                         
-                        // Progress bar (har 2000 xabarda)
-                        if (messageCount % 2000 === 0) {
-                            try {
-                                const progressMsg = `⏳ **Yig'ilmoqda...**\n\n🔎 Ko'rib chiqildi: ${messageCount} ta xabar\n👥 Topildi: ${members.length} ta user\n\n(Iltimos kuting, bu biroz vaqt olishi mumkin)`;
-                                // Xabarni yangilashga harakat qilamiz (agar iloji bo'lsa)
-                                // Lekin bizda message_id yo'q, shuning uchun shunchaki log qilamiz yoki yangi xabar yuborishimiz mumkin
-                                // Foydalanuvchiga juda ko'p xabar bormasligi uchun, har 5000 tada yangi xabar yuborish ma'qul, 
-                                // lekin edit qilish eng yaxshisi. Afsuski bizda oldingi xabarning ID si saqlanmagan.
-                                // Shuning uchun console log qilamiz.
-                                console.log(`[Progress] ${messageCount} messages scanned, ${members.length} users found.`);
-                                
-                                // Agar 10k dan oshsa va hali ham user kam bo'lsa, userga xabar beramiz
-                                if (messageCount % 10000 === 0) {
-                                     bot.sendMessage(chatId, `🔎 Status: ${messageCount} ta xabar ko'rib chiqildi. ${members.length} ta user topildi. Davom etilmoqda...`);
-                                }
-                            } catch (e) {}
+                        // Progress log
+                        if (messageCount % 5000 === 0) {
+                             console.log(`[Progress] ${messageCount} messages scanned.`);
                         }
                         
                         // Xabar egasini aniqlash
                         let user = message.sender; // GramJS avtomatik keshlashdan oladi
                         
-                        // getSender() olib tashlandi - tezlik uchun
-                        // Agar user keshda bo'lmasa, uni alohida so'rov bilan olish juda sekin.
-                        // Shuning uchun faqat keshda borlarini olamiz.
-
                         if (user) {
                             // Faqat User tipidagilar (Channel/Chat emas)
                             if (user.className !== 'User' && user.className !== 'PeerUser') continue;
@@ -1685,9 +1715,24 @@ async function startAvtoUser(chatId, client, link, limit) {
                             
                             if (user.username && !uniqueUsernames.has(user.username)) {
                                 uniqueUsernames.add(user.username);
-                                members.push("@" + user.username);
+                                const memberUser = "@" + user.username;
+                                members.push(memberUser);
+                                batchMembers.push(memberUser);
+
+                                // Har 100 ta user yig'ilganda yuborish
+                                if (batchMembers.length >= 100) {
+                                    await sendBatchUsers('member', batchMembers);
+                                    totalSentMembers += batchMembers.length;
+                                    batchMembers = []; // Tozalash
+                                }
                             }
                         }
+                    }
+                    
+                    // Qolgan userlarni yuborish (agar 100 tadan kam qolgan bo'lsa)
+                    if (batchMembers.length > 0) {
+                        await sendBatchUsers('member', batchMembers);
+                        totalSentMembers += batchMembers.length;
                     }
 
                 } catch (e) {
@@ -1700,50 +1745,17 @@ async function startAvtoUser(chatId, client, link, limit) {
             return;
         }
 
-        if (members.length === 0 && admins.length === 0) {
+        if (totalSentMembers === 0 && totalSentAdmins === 0 && members.length === 0) {
             bot.sendMessage(chatId, "❌ Hech qanday foydalanuvchi topilmadi (username borlar). Guruh a'zolari yashirilgan bo'lishi mumkin.");
             return;
         }
 
-        // 3. NATIJANI YUBORISH (ALOHIDA XABARLARDA)
-        const total = admins.length + members.length;
+        // 3. NATIJANI YUBORISH (FINAL SUMMARY)
+        const total = totalSentAdmins + totalSentMembers; // members arrayi to'liq bo'lmasligi mumkin (batch yuborilgani uchun), shuning uchun totalSent hisoblaymiz
         
         // 1. Summary Message
-        const summaryMessage = "🏁 **NATIJA:**\n\n👑 **Adminlar:** " + admins.length + " ta\n👥 **Azolar:** " + members.length + " ta\n📦 **Jami:** " + total + " ta";
-        await bot.sendMessage(chatId, summaryMessage, { parse_mode: "Markdown" });
-
-        // Helper: Ro'yxatni bo'laklab yuborish
-        const sendListMessage = async (header, items) => {
-             const MAX_LENGTH = 4000;
-             let currentMessage = header + "\n\n";
-             
-             for (const item of items) {
-                 // Agar xabar limiti oshsa, yuboramiz va yangisini boshlaymiz
-                 if (currentMessage.length + item.length + 1 > MAX_LENGTH) {
-                     await bot.sendMessage(chatId, currentMessage, { parse_mode: "HTML" });
-                     currentMessage = header + " (davomi)...\n\n" + item;
-                 } else {
-                     currentMessage += "\n" + item;
-                 }
-             }
-             // Qolgan qismini yuborish
-             if (currentMessage !== header + "\n\n") {
-                 await bot.sendMessage(chatId, currentMessage, { parse_mode: "HTML" });
-             }
-        };
-
-        // 2. Adminlar Message
-        if (admins.length > 0) {
-            await sendListMessage("<b>👑 ADMINLAR USERNAMELARI:</b>", admins);
-        }
-
-        // 3. Azolar Message
-        if (members.length > 0) {
-            await sendListMessage("<b>👥 AZOLAR USERNAMELARI:</b>", members);
-        }
-
-        // 4. Tugadi Message
-        await bot.sendMessage(chatId, "✅ **Jarayon yakunlandi.** Barcha foydalanuvchilar ro'yxati yuqorida.", { parse_mode: "Markdown", ...getMainMenu(chatId) });
+        const summaryMessage = "🏁 **NATIJA:**\n\n👑 **Adminlar:** " + totalSentAdmins + " ta\n👥 **Azolar:** " + totalSentMembers + " ta\n📦 **Jami:** " + total + " ta";
+        await bot.sendMessage(chatId, summaryMessage, { parse_mode: "Markdown", ...getMainMenu(chatId) });
 
         // Statistikani yangilash
         await User.findOneAndUpdate({ chatId }, { $inc: { usersGathered: total } });
