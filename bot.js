@@ -1487,45 +1487,53 @@ async function startAvtoUser(chatId, client, link, limit) {
                             entity = result.chats[0];
                         }
                     } catch (e) {
+                        // Xato bo'lsa (masalan USER_ALREADY_PARTICIPANT), CheckChatInvite orqali tekshiramiz
+                        // Hamma xatolarni log qilamiz va davom etishga harakat qilamiz
+                        console.log("ImportChatInvite error:", e.message);
+
                         if (e.message && (e.message.includes('USER_ALREADY_PARTICIPANT') || e.message.includes('ALREADY_PARTICIPANT'))) {
                             console.log("User already in group. Resolving entity...");
-                            // Agar allaqachon a'zo bo'lsa, checkChatInvite orqali ma'lumot olishga harakat qilamiz
-                            try {
-                                const check = await client.invoke(new Api.messages.CheckChatInvite({ hash: hash }));
+                        } else {
+                            console.log("Attempting fallback resolution despite error...");
+                        }
+
+                        // Agar allaqachon a'zo bo'lsa yoki boshqa xato bo'lsa, checkChatInvite orqali ma'lumot olishga harakat qilamiz
+                        try {
+                            const check = await client.invoke(new Api.messages.CheckChatInvite({ hash: hash }));
+                            
+                            // 1. Agar ChatInviteAlready bo'lsa (Chat object bor)
+                            if (check.className === 'ChatInviteAlready' && check.chat) {
+                                entity = check.chat;
+                                console.log("Entity resolved directly from ChatInviteAlready");
+                            } 
+                            // 2. Agar oddiy ChatInvite bo'lsa (lekin ichida chat object bor)
+                            else if (check.chat && (check.chat.className === 'Chat' || check.chat.className === 'Channel')) {
+                                entity = check.chat;
+                                console.log("Entity resolved from ChatInvite.chat");
+                            } 
+                            // 3. Agar ChatInvite bo'lsa va faqat title bo'lsa
+                            else if (check.title || (check.chat && check.chat.title)) {
+                                const searchTitle = check.title || check.chat.title;
+                                console.log("Searching for chat by title: " + searchTitle);
                                 
-                                if (check.className === 'ChatInviteAlready' && check.chat) {
-                                    entity = check.chat;
-                                    console.log("Entity resolved directly from ChatInviteAlready");
-                                } else if (check.chat && (check.chat.className === 'Chat' || check.chat.className === 'Channel')) {
-                                    // Ba'zan ChatInvite ichida to'liq chat bo'lishi mumkin
-                                    entity = check.chat;
-                                    console.log("Entity resolved from ChatInvite.chat");
-                                } else if (check.title) {
-                                    console.log("Searching for chat by title: " + check.title);
-                                    
-                                    // Dialoglardan qidirish (ko'proq limit bilan)
-                                    // Barcha dialoglarni ko'rib chiqamiz (limit: undefined)
-                                    console.log("Deep searching in ALL dialogs...");
-                                    for await (const dialog of client.iterDialogs({})) {
-                                        // console.log("Checking dialog: " + dialog.title);
-                                        if (dialog.title === check.title || dialog.name === check.title) {
-                                            entity = dialog.entity;
-                                            console.log("Entity found in deep search:", entity.title);
-                                            break;
-                                        }
-                                        // Qo'shimcha tekshiruv: agar dialog ID si check.chat.id ga teng bo'lsa (agar check.chat bo'lsa)
-                                        if (check.chat && (dialog.id && dialog.id.toString() === check.chat.id.toString())) {
-                                            entity = dialog.entity;
-                                            console.log("Entity found by ID match:", entity.title);
-                                            break;
-                                        }
+                                // Barcha dialoglarni ko'rib chiqamiz (limit: undefined)
+                                console.log("Deep searching in ALL dialogs...");
+                                for await (const dialog of client.iterDialogs({})) {
+                                    if (dialog.title === searchTitle || dialog.name === searchTitle) {
+                                        entity = dialog.entity;
+                                        console.log("Entity found in deep search:", entity.title);
+                                        break;
+                                    }
+                                    // Qo'shimcha tekshiruv: agar dialog ID si check.chat.id ga teng bo'lsa (agar check.chat bo'lsa)
+                                    if (check.chat && (dialog.id && dialog.id.toString() === check.chat.id.toString())) {
+                                        entity = dialog.entity;
+                                        console.log("Entity found by ID match:", entity.title);
+                                        break;
                                     }
                                 }
-                            } catch (err) {
-                                console.error("CheckInvite error:", err);
                             }
-                        } else {
-                            throw e;
+                        } catch (err) {
+                            console.error("CheckInvite error:", err);
                         }
                     }
                 }
@@ -1561,8 +1569,20 @@ async function startAvtoUser(chatId, client, link, limit) {
         if (!entity) {
             // Agar entity null bo'lsa (masalan already participant bo'lib, entity resolve bo'lmasa)
             // Biz getDialogs orqali qidirib ko'rishimiz mumkin, lekin bu og'ir operatsiya.
-            bot.sendMessage(chatId, "❌ Guruh ma'lumotlarini aniqlab bo'lmadi. Iltimos, linkni tekshiring.");
+            bot.sendMessage(chatId, "❌ Guruh ma'lumotlarini aniqlab bo'lmadi. Iltimos, linkni tekshiring.\n\nEhtimoliy sabablar:\n1. Siz guruhda borsiz, lekin bot uni topa olmadi.\n2. Link muddati tugagan.\n3. Guruh nomi o'zgargan.");
             return;
+        }
+
+        // Entityni yangilash (agar u min qatlamda bo'lsa)
+        if (entity && (entity.className === 'Chat' || entity.className === 'Channel')) {
+            try {
+                // To'liq ma'lumot olishga harakat qilamiz
+                // entity = await client.getEntity(entity); 
+                // Izoh: getEntity har doim ham kerak emas va ba'zan sekinlashishi mumkin.
+                // Lekin access hash muammosi bo'lsa kerak bo'ladi.
+            } catch (e) {
+                console.log("Entity refresh failed, using existing:", e.message);
+            }
         }
 
         const title = entity.title || "Guruh";
