@@ -1237,7 +1237,7 @@ bot.on('message', async (msg) => {
         if (state.step === 'WAITING_AVTOUSER_LIMIT') {
             let limit = parseInt(text.replace(/\D/g, ''));
             if (isNaN(limit) || limit <= 0) limit = 100;
-            if (limit > 100000) limit = 100000;
+            if (limit > 50000) limit = 50000;
 
             // Process started...
 
@@ -1737,7 +1737,7 @@ async function startAvtoUser(chatId, client, link, limit) {
                     }
                     console.log("Starting History Scan via iterMessages (Target: " + limit + " members)...");
                     
-                    const historyMax = 100000; // 100k xabargacha ko'rish
+                    const historyMax = 50000; // 50k xabargacha ko'rish
                     let messageCount = 0;
                     let batchMembers = []; // Har 100 ta yig'ish uchun vaqtinchalik array
 
