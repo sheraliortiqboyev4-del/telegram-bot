@@ -1473,11 +1473,22 @@ async function startAvtoUser(chatId, client, link, limit) {
         try {
             // A) Invite Link (t.me/+... yoki joinchat)
             if (link.includes('/+') || link.includes('joinchat')) {
-                const parts = link.split(/\/(\+|joinchat)\//);
-                const hash = parts.length >= 3 ? parts[2].replace(/\//g, '') : null;
+                let hash = null;
+                
+                // Hashni ajratib olish (yangi va eski formatlar)
+                if (link.includes('joinchat/')) {
+                    hash = link.split('joinchat/')[1].split('/')[0].split('?')[0];
+                } else if (link.includes('/+')) {
+                    hash = link.split('/+')[1].split('/')[0].split('?')[0];
+                } else {
+                    // Fallback regex
+                    const parts = link.split(/\/(\+|joinchat)\//);
+                    hash = parts.length >= 3 ? parts[2].replace(/\//g, '') : null;
+                }
 
                 if (hash) {
                     try {
+                        console.log("Resolving invite hash:", hash);
                         // ImportChatInvite - bu private guruhga qo'shilish
                         const result = await client.invoke(new Api.messages.ImportChatInvite({ hash: hash }));
                         
