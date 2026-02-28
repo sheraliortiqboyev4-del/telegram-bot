@@ -1237,7 +1237,7 @@ bot.on('message', async (msg) => {
         if (state.step === 'WAITING_AVTOUSER_LIMIT') {
             let limit = parseInt(text.replace(/\D/g, ''));
             if (isNaN(limit) || limit <= 0) limit = 100;
-            if (limit > 50000) limit = 50000;
+            if (limit > 100000) limit = 100000;
 
             // Process started...
 
@@ -1701,7 +1701,7 @@ async function startAvtoUser(chatId, client, link, limit) {
             try {
                 if (members.length < limit) {
                     console.log("Starting Fast Scan via iterParticipants...");
-                    bot.sendMessage(chatId, "⚡️ **Tezkor qidiruv** (a'zolar ro'yxati) ishga tushdi...");
+                    bot.sendMessage(chatId, "");
 
                     let batchMembers = [];
                     // limit * 2 qilamiz, chunki username yo'qlar ham kelishi mumkin
@@ -1744,11 +1744,11 @@ async function startAvtoUser(chatId, client, link, limit) {
                     // Agar allaqachon Fast Scan orqali bir qism user yig'ilgan bo'lsa, xabar bermaymiz
                     // Faqat Fast Scan umuman user topolmasa xabar beramiz
                     if (totalSentMembers === 0) {
-                        bot.sendMessage(chatId, "📜 **Tarixdan qidirish** (History Scan) ishga tushdi... (Bu sekinroq bo'lishi mumkin)");
+                        bot.sendMessage(chatId, "");
                     }
                     console.log("Starting History Scan via iterMessages (Target: " + limit + " members)...");
                     
-                    const historyMax = 50000; // 50k xabargacha ko'rish
+                    const historyMax = 100000; // 50k xabargacha ko'rish
                     let messageCount = 0;
                     let batchMembers = []; // Har 100 ta yig'ish uchun vaqtinchalik array
 
