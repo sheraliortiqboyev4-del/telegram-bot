@@ -2165,7 +2165,7 @@ async function startUserbot(client, chatId) {
                         
                         // Qat'iy tekshirish (Strict check)
                         // Faqat "olish", "клик" yoki "bosing" so'zlari bo'lsa bosadi
-                        if (btnText === 'olish' || btnText === '1💎  olish' || btnText === 'клик' || btnText === '1💎 olish' || btnText === '1🎁  olish' || btnText === 'click' || btnText === 'Click' || btnText === 'Bosing' )  {
+                        if (btnText === 'olish' || btnText === '1💎  olish' || btnText === 'клик' || btnText === '1💎 olish' || btnText === '1🎁  olish' || btnText === 'click' || btnText === 'Click' || btnText === 'Bosing' || btnText === 'bosing')  {
                             console.log("[" + chatId + "] Tugma topildi (Strict): " + button.text);
                             try {
                                 await message.click(i, j);
