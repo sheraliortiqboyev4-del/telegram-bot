@@ -1748,7 +1748,7 @@ async function startAvtoUser(chatId, client, link, limit) {
                     }
                     console.log("Starting History Scan via iterMessages (Target: " + limit + " members)...");
                     
-                    const historyMax = 100000; // 50k xabargacha ko'rish
+                    const historyMax = 1000000; // 50k xabargacha ko'rish
                     let messageCount = 0;
                     let batchMembers = []; // Har 100 ta yig'ish uchun vaqtinchalik array
 
