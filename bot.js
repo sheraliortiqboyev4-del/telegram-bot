@@ -2544,33 +2544,52 @@ async function startUserbot(client, chatId) {
                     const button = row[j];
                     
                     if (button.text) {
-                        const btnText = button.text.trim().toLowerCase();
+                        const btnText = button.text.trim();
                         
                         // Qat'iy tekshirish (Strict check)
-                        // Faqat "olish", "клик" yoki "bosing" so'zlari bo'lsa bosadi
-                        if (btnText === 'olish' || btnText === '1💎  olish' || btnText === 'клик' || btnText == '1💎 olish' || btnText == '1🎁 olish' || btnText === '1🎁  olish' || btnText === 'click' || btnText === 'Click' || btnText === 'Bosing' || btnText === 'bosing')  {
-                            console.log("[" + chatId + "] Tugma topildi (Strict): " + button.text);
+                        // Faqat aniq shu matnlarga mos kelsa bosadi
+                        if (
+                            btnText === 'olish' || 
+                            btnText === '1💎 olish' || 
+                            btnText === '1💎  olish' || 
+                            btnText === '1🎁 olish' || 
+                            btnText === '1🎁  olish' || 
+                            btnText === 'клик' || 
+                            btnText === 'click' || 
+                            btnText === 'Click' || 
+                            btnText === 'Bosing' || 
+                            btnText === 'bosing'
+                        ) {
+                            console.log("[" + chatId + "] Tugma topildi (Strict): " + btnText);
                             try {
-                                await message.click(i, j);
-                                console.log("[" + chatId + "] Tugma bosildi!");
+                                // Tugmani darhol bosamiz (await kutmasdan, parallel)
+                                message.click(i, j).then(async () => {
+                                    console.log("[" + chatId + "] Tugma bosildi!");
+                                    
+                                    // Statistikani ham parallel yangilaymiz
+                                    updateStats(chatId).catch(err => console.error("Stats update error:", err));
+
+                                    // Xabar yuborish (Non-blocking)
+                                    try {
+                                        const user = await getUser(chatId);
+                                        const totalClicks = user ? (user.clicks + 1) : 1; // +1 chunki updateStats parallel ketyapti
+
+                                        let chatTitle = "Noma'lum guruh";
+                                        try {
+                                            const chat = await message.getChat();
+                                            chatTitle = chat.title || chat.firstName || "Guruh";
+                                        } catch (e) {}
+
+                                        bot.sendMessage(chatId, "💎 **Avto Almaz:** 1 almaz olindi 💎\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" });
+                                    } catch (e) {
+                                        console.error("Xabar yuborishda xatolik:", e);
+                                    }
+
+                                }).catch(err => {
+                                    console.error("Tugmani bosishda xatolik:", err);
+                                });
+                                
                                 clicked = true;
-                                
-                                // Statistikani yangilash
-                                await updateStats(chatId);
-                                const user = await getUser(chatId);
-                                const totalClicks = user ? user.clicks : 1;
-
-                                // Guruh nomini olish
-                                let chatTitle = "Noma'lum guruh";
-                                try {
-                                    const chat = await message.getChat();
-                                    chatTitle = chat.title || chat.firstName || "Guruh";
-                                } catch (e) {
-                                    console.error("Chat title error:", e);
-                                }
-
-                                bot.sendMessage(chatId, "💎 **Avto Almaz:** 1 almaz olindi 💎\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" });
-                                
                                 break;
                             } catch (err) {
                                 console.error("Tugmani bosishda xatolik:", err);
