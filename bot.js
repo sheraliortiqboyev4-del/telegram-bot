@@ -649,11 +649,11 @@ bot.on('callback_query', async (query) => {
 
                 
                 if (u.status === 'pending') {
-                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon + "\n   👉 /approve_" + u.chatId + " | /block_" + u.chatId + "\n"; 
+                    listMessage +=  statusIcon + userName + " | `" + u.chatId + "` " ;   //+ "\n   👉 /approve_" + u.chatId + " | /block_" + u.chatId + "\n//
                 } else if (u.status === 'approved') {
-                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon + "\n   👉 /block_" + u.chatId + "\n";
+                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon ;   //+ "\n   👉 /block_" + u.chatId + "\n"
                 } else if (u.status === 'blocked') {
-                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon + "\n   👉 /unblock_" + u.chatId + "\n";
+                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon ;   //+ "\n   👉 /unblock_" + u.chatId + "\n"
                 }
             });
             
