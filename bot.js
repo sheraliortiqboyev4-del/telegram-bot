@@ -59,7 +59,10 @@ if (!MONGO_URI) {
 const userSchema = new mongoose.Schema({
     chatId: { type: Number, required: true, unique: true },
     name: String,
+    username: String,
     status: { type: String, default: 'pending' }, // pending, approved, blocked
+    subscriptionType: { type: String, default: 'none' }, // monthly, vip
+    expireAt: { type: Date, default: null }, // Qachon muddati tugaydi
     clicks: { type: Number, default: 0 },
     session: { type: String, default: null },
     joinedAt: { type: Date, default: Date.now },
@@ -85,6 +88,57 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[Unhandled Rejection]', reason);
 });
+
+// Expiration Check Job (Har 10 daqiqada tekshiradi)
+setInterval(async () => {
+    try {
+        const now = new Date();
+        const expiredUsers = await User.find({ 
+            status: 'approved', 
+            expireAt: { $lt: now, $ne: null } // Muddati tugagan va null bo'lmagan
+        });
+
+        for (const user of expiredUsers) {
+            console.log(`[Expiration] User ${user.chatId} subscription expired.`);
+            
+            // Userni bloklash yoki statusini o'zgartirish
+            await updateUser(user.chatId, { 
+                status: 'blocked', 
+                session: null, 
+                expireAt: null,
+                subscriptionType: 'expired'
+            });
+
+            // Userbotni o'chirish
+            if (userClients[user.chatId]) {
+                try {
+                    await userClients[user.chatId].disconnect();
+                    await userClients[user.chatId].destroy();
+                    delete userClients[user.chatId];
+                } catch (e) {
+                    console.error("Expiration disconnect error:", e);
+                }
+            }
+
+            // Foydalanuvchiga xabar yuborish
+            await sendSafeMessage(user.chatId, "⚠️ **Diqqat!** Sizning obuna muddatingiz tugadi.\nBot xizmatlari to'xtatildi. Iltimos, admin bilan bog'laning: @ortiqov_x7", {
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "👨‍💼 Admin", url: "https://t.me/ortiqov_x7" }]
+                    ]
+                }
+            });
+
+            // Adminga xabar berish
+            if (ADMIN_ID) {
+                await sendSafeMessage(ADMIN_ID, `⏳ **Muddati tugadi:**\n👤 ${user.name} (@${user.username || 'No username'})\n🆔 ${user.chatId}`);
+            }
+        }
+    } catch (e) {
+        console.error("Expiration check error:", e);
+    }
+}, 600000); // 10 daqiqa (600,000 ms)
 
 // Helper: Safe Send Message (Markdown fail bo'lsa, oddiy text yuborish)
 const sendSafeMessage = async (chatId, text, options = {}) => {
@@ -226,6 +280,7 @@ bot.onText(/\/start/, async (msg) => {
     try {
         const chatId = msg.chat.id;
         const name = msg.from.first_name || "Foydalanuvchi";
+        const username = msg.from.username || null;
         const safeName = name.replace(/[*_`\[\]()]/g, '') || "Foydalanuvchi";
         
         console.log(`User started: ${name} (${chatId})`);
@@ -237,9 +292,9 @@ bot.onText(/\/start/, async (msg) => {
         // Agar foydalanuvchi Admin bo'lsa, uni avtomatik 'approved' qilamiz
         if (ADMIN_ID && chatId.toString() === ADMIN_ID.toString()) {
             if (!user) {
-                user = await updateUser(chatId, { name, status: 'approved' });
-            } else if (user.status !== 'approved') {
-                user = await updateUser(chatId, { status: 'approved' });
+                user = await updateUser(chatId, { name, username, status: 'approved' });
+            } else {
+                user = await updateUser(chatId, { name, username, status: 'approved' });
             }
             await sendSafeMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
             return;
@@ -258,7 +313,7 @@ bot.onText(/\/start/, async (msg) => {
 
         if (!user) {
             // Yangi oddiy foydalanuvchi
-            user = await updateUser(chatId, { name, status: 'pending' });
+            user = await updateUser(chatId, { name, username, status: 'pending' });
             
             await sendSafeMessage(chatId, payMessage, payOptions);
             
@@ -278,6 +333,11 @@ bot.onText(/\/start/, async (msg) => {
                 }
             }
             return;
+        }
+
+        // Ma'lumotlarni yangilash
+        if (user) {
+            user = await updateUser(chatId, { name, username });
         }
 
         if (user.status === 'blocked') {
@@ -452,10 +512,24 @@ bot.onText(/\/profile/, async (msg) => {
 
     const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
     
+    let subType = "Oddiy";
+    if (user.subscriptionType === 'vip') subType = "👑 VIP (Cheksiz)";
+    else if (user.subscriptionType === 'monthly') subType = "📅 Oylik";
+    else if (user.subscriptionType === 'expired') subType = "❌ Tugagan";
+
+    let expireDate = "Cheksiz";
+    if (user.expireAt) {
+        expireDate = new Date(user.expireAt).toLocaleDateString();
+    } else if (user.subscriptionType === 'monthly' && !user.expireAt) {
+        expireDate = "Noma'lum"; // Eskilar uchun
+    }
+
     let message = `👤 **Sizning Profilingiz:**\n\n`;
     message += `📛 Ism: ${user.name}\n`;
     message += `🆔 ID: \`${user.chatId}\`\n`;
     message += `📊 Holat: ${statusIcon}\n`;
+    message += `🔰 Tarif: ${subType}\n`;
+    message += `⏳ Tugash vaqti: ${expireDate}\n`;
     message += `💎 To'plangan almazlar: **${user.clicks || 0}** ta\n`;
     message += `📅 Ro'yxatdan o'tgan sana: ${new Date(user.joinedAt).toLocaleDateString()}\n`;
 
@@ -645,16 +719,20 @@ bot.on('callback_query', async (query) => {
 
             recentUsers.forEach(u => {
                 const statusIcon = u.status === 'approved' ? '✅' : (u.status === 'blocked' ? '⛔️' : '⏳');
-                const userName = escapeMarkdown(u.name || "Noma'lum");
-
+                const name = escapeMarkdown(u.name || "Noma'lum");
+                const username = u.username ? `(@${escapeMarkdown(u.username)})` : "";
                 
-                if (u.status === 'pending') {
-                    listMessage +=  statusIcon + userName + " | `" + u.chatId + "` " ;   //+ "\n   👉 /approve_" + u.chatId + " | /block_" + u.chatId + "\n//
-                } else if (u.status === 'approved') {
-                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon ;   //+ "\n   👉 /block_" + u.chatId + "\n"
-                } else if (u.status === 'blocked') {
-                    listMessage += "👤 " + userName + " | `" + u.chatId + "` " + statusIcon ;   //+ "\n   👉 /unblock_" + u.chatId + "\n"
-                }
+                const d = new Date(u.joinedAt);
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const hours = String(d.getHours()).padStart(2, '0');
+                const minutes = String(d.getMinutes()).padStart(2, '0');
+                const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}`;
+
+                listMessage += `👤 ${name} ${username} ${statusIcon}\n`;
+                listMessage += `🆔 \`${u.chatId}\`\n`;
+                listMessage += `📅 ${formattedDate}\n\n`;
             });
             
             listMessage += "\n📊 **Jami:** " + filteredUsers.length + " ta";
@@ -675,22 +753,67 @@ bot.on('callback_query', async (query) => {
             const targetId = parseInt(data.split('_')[2]);
             const user = await getUser(targetId);
             if (user) {
-                await updateUser(targetId, { status: 'approved' });
-                await sendSafeMessage(targetId, "🎉 Siz admin tomonidan tasdiqlandingiz!\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.", { parse_mode: "Markdown" });
-                
-                await bot.answerCallbackQuery(query.id, { text: "✅ " + user.name + " tasdiqlandi!" });
-                try {
-                    const msg = "OK **Foydalanuvchi tasdiqlandi!**\nIsm: " + escapeMarkdown(user.name) + "\nID: " + targetId + "\nStatus: Approved";
-                    await bot.editMessageText(msg, {
-                        chat_id: chatId,
-                        message_id: messageId,
-                        parse_mode: "Markdown"
-                    });
-                } catch (e) {}
-                await bot.sendMessage(chatId, "👇 Bosh menyu:", getAdminMenu());
+                // Yangi logikada darhol tasdiqlamaymiz, muddat tanlashni so'raymiz
+                await bot.editMessageText(`👤 **${user.name}** uchun muddat tanlang:`, {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "📅 1 Oy", callback_data: `admin_sub_month_${targetId}` }],
+                            [{ text: "👑 VIP (Cheksiz)", callback_data: `admin_sub_vip_${targetId}` }],
+                            [{ text: "🔙 Bekor qilish", callback_data: "admin_pending" }]
+                        ]
+                    }
+                });
+                await bot.answerCallbackQuery(query.id);
             } else {
                 await bot.answerCallbackQuery(query.id, { text: "❌ Foydalanuvchi topilmadi!", show_alert: true });
             }
+            return;
+        }
+
+        if (data.startsWith('admin_sub_')) {
+            const parts = data.split('_');
+            const type = parts[2]; // 'month' or 'vip'
+            const targetId = parseInt(parts[3]);
+            const user = await getUser(targetId);
+
+            if (!user) {
+                await bot.answerCallbackQuery(query.id, { text: "❌ Foydalanuvchi topilmadi!", show_alert: true });
+                return;
+            }
+
+            let updateData = { status: 'approved' };
+            let subText = "";
+
+            if (type === 'month') {
+                const expireDate = new Date();
+                expireDate.setMonth(expireDate.getMonth() + 1); // 1 oy qo'shish
+                updateData.expireAt = expireDate;
+                updateData.subscriptionType = 'monthly';
+                subText = "📅 1 Oy";
+            } else if (type === 'vip') {
+                updateData.expireAt = null; // Cheksiz
+                updateData.subscriptionType = 'vip';
+                subText = "👑 VIP";
+            }
+
+            await updateUser(targetId, updateData);
+            
+            await sendSafeMessage(targetId, `🎉 Siz admin tomonidan tasdiqlandingiz!\n\n🔰 **Tarif:** ${subText}\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.`, { parse_mode: "Markdown" });
+            
+            await bot.answerCallbackQuery(query.id, { text: `✅ ${user.name} tasdiqlandi (${subText})!` });
+            
+            try {
+                const msg = `✅ **Foydalanuvchi tasdiqlandi!**\n👤 Ism: ${escapeMarkdown(user.name)}\n🆔 ID: \`${targetId}\`\n🔰 Tarif: ${subText}`;
+                await bot.editMessageText(msg, {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    parse_mode: "Markdown"
+                });
+            } catch (e) {}
+            await bot.sendMessage(chatId, "👇 Bosh menyu:", getAdminMenu());
             return;
         }
 
