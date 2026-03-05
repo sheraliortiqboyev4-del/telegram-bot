@@ -1075,10 +1075,24 @@ bot.on('callback_query', async (query) => {
         const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
         const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
         
+        let subType = "Oddiy";
+        if (user.subscriptionType === 'vip') subType = "👑 VIP (Cheksiz)";
+        else if (user.subscriptionType === 'monthly') subType = "📅 Oylik";
+        else if (user.subscriptionType === 'expired') subType = "❌ Tugagan";
+
+        let expireDate = "Cheksiz";
+        if (user.expireAt) {
+            expireDate = new Date(user.expireAt).toLocaleDateString();
+        } else if (user.subscriptionType === 'monthly' && !user.expireAt) {
+            expireDate = "Noma'lum"; // Eskilar uchun
+        }
+
         let message = "👤 **Sizning Profilingiz:**\n\n";
         message += "📛 **Ism:** " + escapeMarkdown(user.name) + "\n";
         message += "🆔 **ID:** `" + user.chatId + "`\n";
         message += "🔰 **Holat:** " + statusIcon + "\n";
+        message += "🔰 **Tarif:** " + subType + "\n";
+        message += "⏳ **Tugash vaqti:** " + expireDate + "\n";
         message += "🔌 **Sessiya:** " + sessionStatus + "\n\n";
         
         message += "⚔️ **Reydlar soni:** " + (user.reydCount || 0) + " ta\n";
@@ -1134,10 +1148,24 @@ bot.on('callback_query', async (query) => {
         const statusIcon = user.status === 'approved' ? '✅ Tasdiqlangan' : (user.status === 'blocked' ? '⛔️ Bloklangan' : '⏳ Kutilmoqda');
         const sessionStatus = userClients[chatId] ? '🟢 Onlayn' : '🔴 Offlayn';
         
+        let subType = "Oddiy";
+        if (user.subscriptionType === 'vip') subType = "👑 VIP (Cheksiz)";
+        else if (user.subscriptionType === 'monthly') subType = "📅 Oylik";
+        else if (user.subscriptionType === 'expired') subType = "❌ Tugagan";
+
+        let expireDate = "Cheksiz";
+        if (user.expireAt) {
+            expireDate = new Date(user.expireAt).toLocaleDateString();
+        } else if (user.subscriptionType === 'monthly' && !user.expireAt) {
+            expireDate = "Noma'lum"; // Eskilar uchun
+        }
+
         let message = "👤 **Sizning Profilingiz:**\n\n";
         message += "📛 **Ism:** " + escapeMarkdown(user.name) + "\n";
         message += "🆔 **ID:** `" + user.chatId + "`\n";
         message += "🔰 **Holat:** " + statusIcon + "\n";
+        message += "🔰 **Tarif:** " + subType + "\n";
+        message += "⏳ **Tugash vaqti:** " + expireDate + "\n";
         message += "🔌 **Sessiya:** " + sessionStatus + "\n\n";
         
         message += "⚔️ **Reydlar soni:** " + (user.reydCount || 0) + " ta\n";
