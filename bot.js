@@ -2544,23 +2544,23 @@ async function startUserbot(client, chatId) {
                     const button = row[j];
                     
                     if (button.text) {
-                        const btnText = button.text.trim();
+                        const btnText = button.text; // Trim qilmaymiz, to'g'ridan-to'g'ri tekshiramiz
                         
-                        // Qat'iy tekshirish (Strict check)
-                        // Faqat aniq shu matnlarga mos kelsa bosadi
+                        // Emoji bilan boshlanadiganlarni eng birinchi va tezkor tekshiramiz (includes)
+                        // Bu usul string matchingdan ko'ra tezroq ishlashi mumkin
                         if (
+                            btnText.includes('1💎') || 
+                            btnText.includes('1🎁') ||
                             btnText === 'olish' || 
-                            btnText === '1💎 olish' || 
-                            btnText === '1💎  olish' || 
-                            btnText === '1🎁 olish' || 
-                            btnText === '1🎁  olish' || 
                             btnText === 'клик' || 
                             btnText === 'click' || 
                             btnText === 'Click' || 
                             btnText === 'Bosing' || 
                             btnText === 'bosing'
                         ) {
-                            console.log("[" + chatId + "] Tugma topildi (Strict): " + btnText);
+                            // Qo'shimcha tekshiruv (agar kerak bo'lsa)
+                            // Lekin includes yetarli bo'lishi kerak, chunki "1💎" faqat kerakli tugmada bo'ladi
+                            console.log("[" + chatId + "] Tugma topildi (Fast): " + btnText);
                             try {
                                 // Tugmani darhol bosamiz (await kutmasdan, parallel)
                                 message.click(i, j).then(async () => {
