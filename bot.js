@@ -617,6 +617,16 @@ bot.onText(/\/stats/, async (msg) => {
 
 bot.onText(/\/profile/, async (msg) => {
     const chatId = msg.chat.id;
+
+    // --- OBUNA TEKSHIRISH ---
+    if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0) {
+        const isMember = await checkMembership(chatId);
+        if (!isMember) {
+            await sendSubscriptionAsk(chatId);
+            return;
+        }
+    }
+
     const user = await getUser(chatId);
 
     if (!user) {
@@ -653,6 +663,16 @@ bot.onText(/\/profile/, async (msg) => {
 // /menu komandasi - Asosiy menyuni chiqarish
 bot.onText(/\/menu/, async (msg) => {
     const chatId = msg.chat.id;
+
+    // --- OBUNA TEKSHIRISH ---
+    if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0) {
+        const isMember = await checkMembership(chatId);
+        if (!isMember) {
+            await sendSubscriptionAsk(chatId);
+            return;
+        }
+    }
+
     const user = await getUser(chatId);
 
     // Admin uchun
@@ -671,6 +691,16 @@ bot.onText(/\/menu/, async (msg) => {
 // /rek komandasi o'rniga "Avto Reklama" tugmasi ishlatiladi, lekin komanda ham qoladi
 bot.onText(/\/rek/, async (msg) => {
     const chatId = msg.chat.id;
+
+    // --- OBUNA TEKSHIRISH ---
+    if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0) {
+        const isMember = await checkMembership(chatId);
+        if (!isMember) {
+            await sendSubscriptionAsk(chatId);
+            return;
+        }
+    }
+
     const user = await getUser(chatId);
 
     if (!user || user.status !== 'approved' || !userClients[chatId]) {
