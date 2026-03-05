@@ -342,6 +342,20 @@ bot.onText(/\/start/, async (msg) => {
 
         if (user.status === 'blocked') {
             await sendSafeMessage(chatId, payMessage, payOptions);
+
+            // Adminga xabar berish
+            if (ADMIN_ID) {
+                try {
+                    await sendSafeMessage(ADMIN_ID, `⛔️ **Bloklangan foydalanuvchi qaytdi!**\n👤 Ism: ${safeName}\n🆔 ID: \`${chatId}\`\n📅 Vaqt: ${new Date().toLocaleString()}`, {
+                        parse_mode: "Markdown",
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: "✅ Blokdan chiqarish", callback_data: `admin_unblock_${chatId}` }, { text: "ℹ️ Info", callback_data: `admin_info_${chatId}` }]
+                            ]
+                        }
+                    });
+                } catch (e) {}
+            }
             return;
         }
 
@@ -474,6 +488,52 @@ bot.onText(/\/unblock[ _](\d+)/, async (msg, match) => {
         
         await bot.sendMessage(targetId, `🎉 Siz blokdan chiqarildingiz!\nBotdan foydalanish uchun /start buyrug'ini bosing.`, { parse_mode: "Markdown" });
         await bot.sendMessage(chatId, `✅ ${user.name} blokdan chiqarildi!`);
+    } else {
+        await bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi!");
+    }
+});
+
+bot.onText(/\/info[ _](\d+)/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (chatId.toString() !== ADMIN_ID.toString()) return;
+
+    const targetId = parseInt(match[1]);
+    const user = await getUser(targetId);
+    
+    if (user) {
+        const statusIcon = user.status === 'approved' ? '✅' : (user.status === 'blocked' ? '⛔️' : '⏳');
+        let subType = "Oddiy";
+        if (user.subscriptionType === 'vip') subType = "👑 VIP";
+        else if (user.subscriptionType === 'monthly') subType = "📅 Oylik";
+        else if (user.subscriptionType === 'expired') subType = "❌ Tugagan";
+
+        let expireDate = "Cheksiz";
+        if (user.expireAt) {
+            expireDate = new Date(user.expireAt).toLocaleDateString();
+        }
+
+        let message = `👤 **Foydalanuvchi Ma'lumotlari:**\n\n`;
+        message += `📛 Ism: ${escapeMarkdown(user.name)}\n`;
+        if (user.username) message += `🔗 Username: @${escapeMarkdown(user.username)}\n`;
+        message += `🆔 ID: \`${user.chatId}\`\n`;
+        message += `📊 Status: ${user.status} ${statusIcon}\n`;
+        message += `🔰 Tarif: ${subType}\n`;
+        message += `⏳ Tugash: ${expireDate}\n`;
+        message += `💎 Almazlar: ${user.clicks || 0}\n`;
+        message += `📅 Qo'shildi: ${new Date(user.joinedAt).toLocaleString()}\n`;
+        message += `⚔️ Reydlar: ${user.reydCount || 0}\n`;
+        message += `👥 Userlar: ${user.usersGathered || 0}\n`;
+        message += `📢 Reklamalar: ${user.adsCount || 0}\n`;
+
+        await bot.sendMessage(chatId, message, {
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "🚫 Bloklash", callback_data: `admin_block_${user.chatId}` }, { text: "✅ Tasdiqlash", callback_data: `admin_approve_${user.chatId}` }],
+                    [{ text: "📅 1 Oy", callback_data: `admin_sub_month_${user.chatId}` }, { text: "👑 VIP", callback_data: `admin_sub_vip_${user.chatId}` }]
+                ]
+            }
+        });
     } else {
         await bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi!");
     }
@@ -814,6 +874,52 @@ bot.on('callback_query', async (query) => {
                 });
             } catch (e) {}
             await bot.sendMessage(chatId, "👇 Bosh menyu:", getAdminMenu());
+            return;
+        }
+        
+        if (data.startsWith('admin_info_')) {
+            const targetId = parseInt(data.split('_')[2]);
+            const user = await getUser(targetId);
+            
+            if (user) {
+                const statusIcon = user.status === 'approved' ? '✅' : (user.status === 'blocked' ? '⛔️' : '⏳');
+                let subType = "Oddiy";
+                if (user.subscriptionType === 'vip') subType = "👑 VIP";
+                else if (user.subscriptionType === 'monthly') subType = "📅 Oylik";
+                else if (user.subscriptionType === 'expired') subType = "❌ Tugagan";
+
+                let expireDate = "Cheksiz";
+                if (user.expireAt) {
+                    expireDate = new Date(user.expireAt).toLocaleDateString();
+                }
+
+                let message = `👤 **Foydalanuvchi Ma'lumotlari:**\n\n`;
+                message += `📛 Ism: ${escapeMarkdown(user.name)}\n`;
+                if (user.username) message += `🔗 Username: @${escapeMarkdown(user.username)}\n`;
+                message += `🆔 ID: \`${user.chatId}\`\n`;
+                message += `📊 Status: ${user.status} ${statusIcon}\n`;
+                message += `🔰 Tarif: ${subType}\n`;
+                message += `⏳ Tugash: ${expireDate}\n`;
+                message += `💎 Almazlar: ${user.clicks || 0}\n`;
+                message += `📅 Qo'shildi: ${new Date(user.joinedAt).toLocaleString()}\n`;
+                message += `⚔️ Reydlar: ${user.reydCount || 0}\n`;
+                message += `👥 Userlar: ${user.usersGathered || 0}\n`;
+                message += `📢 Reklamalar: ${user.adsCount || 0}\n`;
+                
+                // Eski xabarni o'chirib yuboramiz (yangi xabar bo'lib tushishi uchun) yoki yangisini jo'natamiz
+                await bot.sendMessage(chatId, message, {
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🚫 Bloklash", callback_data: `admin_block_${user.chatId}` }, { text: "✅ Tasdiqlash", callback_data: `admin_approve_${user.chatId}` }],
+                            [{ text: "📅 1 Oy", callback_data: `admin_sub_month_${user.chatId}` }, { text: "👑 VIP", callback_data: `admin_sub_vip_${user.chatId}` }]
+                        ]
+                    }
+                });
+                await bot.answerCallbackQuery(query.id);
+            } else {
+                await bot.answerCallbackQuery(query.id, { text: "❌ Foydalanuvchi topilmadi!", show_alert: true });
+            }
             return;
         }
 
