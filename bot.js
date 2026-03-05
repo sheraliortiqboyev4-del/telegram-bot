@@ -34,6 +34,15 @@ app.listen(PORT, () => {
 // Bot tokeni
 const token = process.env.BOT_TOKEN;
 
+// Majburiy obuna kanallari
+// Quyidagi ro'yxatga kanallaringizni kiriting:
+// { id: '@kanal_username', name: 'Kanal nomi', url: 'https://t.me/kanal_username' }
+// Eslatma: Bot ushbu kanallarda ADMIN bo'lishi shart!
+const REQUIRED_CHANNELS = [
+    { id: '@ortiqov_w', name: 'Personal', url: 'https://t.me/ortiqov_w' },
+    { id: '@AvtoBot_News', name: '𝗔𝗩𝗧𝗢 𝗕𝗢𝗧 𝗡𝗘𝗪𝗦 💎', url: 'https://t.me/AvtoBot_News' }
+];
+
 // API ma'lumotlari
 const apiId = process.env.API_ID ? parseInt(process.env.API_ID) : 2040; 
 const apiHash = process.env.API_HASH || "b18441a1ff607e10a989891a5462e627"; 
@@ -175,6 +184,44 @@ const loginPromises = {};
 // Userbot clients
 const userClients = {};
 
+// Helper: Obuna tekshirish
+async function checkMembership(userId) {
+    if (ADMIN_ID && userId.toString() === ADMIN_ID.toString()) return true; // Admin uchun shart emas
+    
+    if (!REQUIRED_CHANNELS || REQUIRED_CHANNELS.length === 0) return true;
+
+    for (const channel of REQUIRED_CHANNELS) {
+        try {
+            const chatMember = await bot.getChatMember(channel.id, userId);
+            if (chatMember.status === 'left' || chatMember.status === 'kicked') {
+                return false;
+            }
+        } catch (e) {
+            console.error(`Kanalga a'zolikni tekshirishda xatolik (${channel.id}):`, e.message);
+            // Agar bot kanalga admin bo'lmasa yoki kanal topilmasa, xato beradi.
+            // Bunday holda 'true' qaytarish xavfsizroq, lekin logga yozib qo'yamiz.
+            // return true; 
+        }
+    }
+    return true;
+}
+
+// Helper: Obuna xabari
+async function sendSubscriptionAsk(chatId) {
+    const buttons = REQUIRED_CHANNELS.map((channel) => {
+        return [{ text: `📢 ${channel.name} ga a'zo bo'lish`, url: channel.url }];
+    });
+    
+    buttons.push([{ text: "✅ Tekshirish", callback_data: "check_subscription" }]);
+
+    await bot.sendMessage(chatId, "⚠️ **Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:**\n\nA'zo bo'lgandan so'ng \"✅ Tekshirish\" tugmasini bosing.", {
+        parse_mode: "Markdown",
+        reply_markup: {
+            inline_keyboard: buttons
+        }
+    });
+}
+
 // Helper: Asosiy menyu (Inline)
 function getMainMenu(chatId) {
     const isAdmin = chatId && ADMIN_ID && chatId.toString() === ADMIN_ID.toString();
@@ -285,7 +332,14 @@ bot.onText(/\/start/, async (msg) => {
         
         console.log(`User started: ${name} (${chatId})`);
 
-
+        // --- OBUNA TEKSHIRISH ---
+        if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0) {
+            const isMember = await checkMembership(chatId);
+            if (!isMember) {
+                await sendSubscriptionAsk(chatId);
+                return;
+            }
+        }
 
         let user = await getUser(chatId);
         
@@ -674,6 +728,28 @@ bot.on('callback_query', async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
     const messageId = query.message.message_id;
+
+    // --- OBUNA TEKSHIRISH ---
+    if (data === "check_subscription") {
+        const isMember = await checkMembership(chatId);
+        if (isMember) {
+            await bot.deleteMessage(chatId, messageId);
+            await bot.sendMessage(chatId, "✅ **Rahmat!** Siz barcha kanallarga a'zo bo'ldingiz.\n\n/start ni bosing.", { parse_mode: "Markdown" });
+        } else {
+            await bot.answerCallbackQuery(query.id, { text: "❌ Siz hali barcha kanallarga a'zo bo'lmadingiz!", show_alert: true });
+        }
+        return;
+    }
+
+    // Har qanday tugma bosilganda ham obunani tekshirish (agar admin bo'lmasa)
+    if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0) {
+        const isMember = await checkMembership(chatId);
+        if (!isMember) {
+            await sendSubscriptionAsk(chatId);
+            await bot.answerCallbackQuery(query.id);
+            return;
+        }
+    }
 
     // --- ADMIN HANDLERS ---
     if (chatId === ADMIN_ID) {
@@ -1397,6 +1473,26 @@ bot.on('message', async (msg) => {
     // Agar text ham, stiker ham yo'q bo'lsa, chiqib ketamiz.
     // Lekin stiker bo'lsa, uni pastda (REYD_CONTENT da) ishlatamiz.
     if (!text && !msg.sticker) return;
+
+    // --- OBUNA TEKSHIRISH (Admin uchun shart emas) ---
+    if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0) {
+        // Faqat /start bosganda yoki birinchi marta kirganda emas, har doim tekshiradi
+        const isMember = await checkMembership(chatId);
+        if (!isMember) {
+            // Agar /start bo'lsa va a'zo bo'lmasa, salomlashishdan oldin a'zolikni so'rash
+            // Lekin /start logikasi alohida yozilgan, shuning uchun bu yerda return qilamiz
+            if (text === '/start') {
+                // /start handler o'zi tekshiradi yoki bu yerda to'xtatamiz
+                // Keling, /start handlerni o'zida tekshirgan ma'qul, bu yerda esa boshqa xabarlar uchun
+                // Lekin onText(/\/start/) message handlerdan oldin ishlaydi odatda.
+                // Node-telegram-bot-api da onText va on('message') parallel ishlashi mumkin.
+                // Eng yaxshisi, onText ichiga ham qo'shish.
+            } else {
+                await sendSubscriptionAsk(chatId);
+                return;
+            }
+        }
+    }
 
     // --- MENYU TUGMALARI LOGIKASI ---
     // (O'chirildi - Inline tugmalarga o'tkazildi)
