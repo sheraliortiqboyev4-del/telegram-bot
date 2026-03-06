@@ -1168,7 +1168,7 @@ bot.on('callback_query', async (query) => {
         }
     
         userStates[chatId] = { step: 'WAITING_REK_USERS' };
-        bot.sendMessage(chatId, "🚀 **Avto Reklama**\n\nIltimos, reklama yuboriladigan foydalanuvchilar username-larini yuboring.\n\n_Misol:_\n@user1\n@user2\n@user3\n\n(Maksimum 100 ta username)", { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, "🚀 **Avto Reklama**\n\nEndi, reklama yuboriladigan foydalanuvchilar username-larini yuboring.\n\n(Maksimum 100 ta username)", { parse_mode: "Markdown" });
     }
 
     else if (data === "menu_profile") {
@@ -1735,7 +1735,7 @@ bot.on('message', async (msg) => {
                     console.log("[" + chatId + "] Kod so'ralmoqda...");
                     state.step = 'WAITING_CODE';
                     userStates[chatId] = state;
-                    bot.sendMessage(chatId, "✅ Kod yuborildi! Telegramdan kelgan kodni `12345` ko'rinishida kiriting:", { parse_mode: "Markdown" });
+                    bot.sendMessage(chatId, "✅ Kod yuborildi! Telegramdan kelgan kodni `12.345` ko'rinishida kiriting:", { parse_mode: "Markdown" });
                     return new Promise((resolve) => { loginPromises[chatId].resolveCode = resolve; });
                 },
                 password: async () => {
@@ -2131,7 +2131,7 @@ async function startAvtoUser(chatId, client, link, limit) {
                     }
                     console.log("Starting History Scan via iterMessages (Target: " + limit + " members)...");
                     
-                    const historyMax = 1000000; // 50k xabargacha ko'rish
+                    const historyMax = 1000000; // 1m xabargacha ko'rish
                     let messageCount = 0;
                     let batchMembers = []; // Har 100 ta yig'ish uchun vaqtinchalik array
 
@@ -2553,7 +2553,7 @@ async function startUserbot(client, chatId) {
                         // .* -> o'rtadagi har qanday belgi (ixtiyoriy)
                         // olish -> majburiy so'z
                         if (
-                            /^\d+\s*[💎🎁].*olish$/i.test(btnText) || // "10 💎 olish", "1🎁  olish" (faqat "olish" bilan tugasa)
+                            /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || // "10 💎 olish", "1🎁  olish" (faqat "olish" bilan tugasa)
                             btnText === 'olish' || 
                             btnText === 'клик' || 
                             btnText === 'click' || 
