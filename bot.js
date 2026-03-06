@@ -2546,14 +2546,14 @@ async function startUserbot(client, chatId) {
                     if (button.text) {
                         const btnText = button.text; 
                         
-                        // Regex orqali istalgan miqdordagi almaz/sovg'ani aniqlash (faqat "olish" so'zi bilan)
+                        // Regex orqali istalgan miqdordagi almaz/sovg'ani/pulni aniqlash
                         // \d+ -> raqam
                         // \s* -> bo'sh joy
-                        // [💎🎁] -> emoji
+                        // [💎🎁💵] -> emoji (almaz, sovg'a, pul)
                         // .* -> o'rtadagi har qanday belgi (ixtiyoriy)
                         // olish -> majburiy so'z
                         if (
-                            /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || // "10 💎 olish", "1🎁  olish" (faqat "olish" bilan tugasa)
+                            /^\d+\s*[💎🎁💵].*olish$/i.test(btnText) || // "10 💎 olish", "100 💵 olish"
                             btnText === 'olish' || 
                             btnText === 'клик' || 
                             btnText === 'click' || 
@@ -2581,7 +2581,13 @@ async function startUserbot(client, chatId) {
                                             chatTitle = chat.title || chat.firstName || "Guruh";
                                         } catch (e) {}
 
-                                        bot.sendMessage(chatId, "💎 **Avto Almaz:** 1 almaz olindi 💎\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" });
+                                        // Xabar turini aniqlash
+                                        let rewardText = "1 almaz olindi 💎";
+                                        if (btnText.includes('💵')) {
+                                            rewardText = "Pul olindi 💵";
+                                        }
+
+                                        bot.sendMessage(chatId, "💎 **Avto Almaz:** " + rewardText + "\n" + chatTitle + "\n\nJami: " + totalClicks + " ta", { parse_mode: "Markdown" });
                                     } catch (e) {
                                         console.error("Xabar yuborishda xatolik:", e);
                                     }
