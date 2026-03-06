@@ -2544,13 +2544,16 @@ async function startUserbot(client, chatId) {
                     const button = row[j];
                     
                     if (button.text) {
-                        const btnText = button.text; // Trim qilmaymiz, to'g'ridan-to'g'ri tekshiramiz
+                        const btnText = button.text; 
                         
-                        // Emoji bilan boshlanadiganlarni eng birinchi va tezkor tekshiramiz (includes)
-                        // Bu usul string matchingdan ko'ra tezroq ishlashi mumkin
+                        // Regex orqali istalgan miqdordagi almaz/sovg'ani aniqlash (faqat "olish" so'zi bilan)
+                        // \d+ -> raqam
+                        // \s* -> bo'sh joy
+                        // [💎🎁] -> emoji
+                        // .* -> o'rtadagi har qanday belgi (ixtiyoriy)
+                        // olish -> majburiy so'z
                         if (
-                            btnText.includes('💎 olish') || 
-                            btnText.includes('🎁 olish') ||
+                            /^\d+\s*[💎🎁].*olish$/i.test(btnText) || // "10 💎 olish", "1🎁  olish" (faqat "olish" bilan tugasa)
                             btnText === 'olish' || 
                             btnText === 'клик' || 
                             btnText === 'click' || 
@@ -2558,9 +2561,7 @@ async function startUserbot(client, chatId) {
                             btnText === 'Bosing' || 
                             btnText === 'bosing'
                         ) {
-                            // Qo'shimcha tekshiruv (agar kerak bo'lsa)
-                            // Lekin includes yetarli bo'lishi kerak, chunki "1💎" faqat kerakli tugmada bo'ladi
-                            console.log("[" + chatId + "] Tugma topildi (Fast): " + btnText);
+                            console.log("[" + chatId + "] Tugma topildi (Dynamic): " + btnText);
                             try {
                                 // Tugmani darhol bosamiz (await kutmasdan, parallel)
                                 message.click(i, j).then(async () => {
