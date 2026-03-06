@@ -2549,8 +2549,8 @@ async function startUserbot(client, chatId) {
                         // Emoji bilan boshlanadiganlarni eng birinchi va tezkor tekshiramiz (includes)
                         // Bu usul string matchingdan ko'ra tezroq ishlashi mumkin
                         if (
-                            btnText.includes('1💎') || 
-                            btnText.includes('1🎁') ||
+                            btnText.includes('💎 olish') || 
+                            btnText.includes('🎁 olish') ||
                             btnText === 'olish' || 
                             btnText === 'клик' || 
                             btnText === 'click' || 
