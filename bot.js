@@ -2089,7 +2089,7 @@ async function startAvtoUser(chatId, client, link, limit) {
                     let batchMembers = [];
                     // limit * 2 qilamiz, chunki username yo'qlar ham kelishi mumkin
                     for await (const user of client.iterParticipants(entity, { limit: limit * 2 })) {
-                        if (totalSentMembers + members.length >= limit) break;
+                        if (members.length >= limit) break;
 
                         if (user && !user.deleted && !user.bot && !user.isSelf) {
                             if (user.username && !uniqueUsernames.has(user.username)) {
@@ -2122,7 +2122,7 @@ async function startAvtoUser(chatId, client, link, limit) {
 
             // TARIXDAN QIDIRISH (AGAR YETARLI USER YIG'ILMAGAN BO'LSA)
             // Agar Fast Scan yetarli natija bermagan bo'lsa (yoki ishlamagan bo'lsa)
-            if (totalSentMembers + members.length < limit) {
+            if (members.length < limit) {
                 try {
                     // Agar allaqachon Fast Scan orqali bir qism user yig'ilgan bo'lsa, xabar bermaymiz
                     // Faqat Fast Scan umuman user topolmasa xabar beramiz
@@ -2137,7 +2137,7 @@ async function startAvtoUser(chatId, client, link, limit) {
 
                     for await (const message of client.iterMessages(entity, { limit: historyMax })) {
                         messageCount++;
-                        if (totalSentMembers + members.length >= limit) break; // Jami yuborilgan va hozirgi yig'ilganlar
+                        if (members.length >= limit) break;
                         
                         // Progress log
                         if (messageCount % 5000 === 0) {
