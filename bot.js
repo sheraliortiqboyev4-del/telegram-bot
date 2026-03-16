@@ -350,8 +350,18 @@ bot.onText(/\/start/, async (msg) => {
             } else {
                 user = await updateUser(chatId, { name, username, status: 'approved' });
             }
-            await sendSafeMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
-            return;
+
+            // Agar sessiya mavjud bo'lsa, menyuni ko'rsatamiz
+            if (user.session) {
+                await sendSafeMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
+                
+                // Userbotni tekshirish
+                if (!userClients[chatId]) {
+                    restoreUserSession(chatId, user.session);
+                }
+                return;
+            }
+            // Agar sessiya yo'q bo'lsa, pastga o'tib telefon raqam so'raydi
         }
 
         // To'lov xabari va tugmasi
@@ -374,7 +384,7 @@ bot.onText(/\/start/, async (msg) => {
             // Adminga xabar berish (Inline buttonlar bilan)
             if (ADMIN_ID) {
                 try {
-                    await sendSafeMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${safeName}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)`, {
+                    await sendSafeMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${safeName}${username ? `\n🔗 Username: @${username}` : ''}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)`, {
                         parse_mode: "Markdown",
                         reply_markup: {
                             inline_keyboard: [
@@ -434,16 +444,19 @@ bot.onText(/\/start/, async (msg) => {
             return;
         }
 
-        // Agar tasdiqlangan bo'lsa
         if (user.status === 'approved') {
             // Agar allaqachon sessiya bo'lsa
             if (user.session) {
-                 const clicks = user.clicks || 0;
-
-                 await sendSafeMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
-                     parse_mode: "Markdown",
-                     ...getMainMenu(chatId)
-                 });
+                 // Agar foydalanuvchi Admin bo'lsa, maxsus xabar yuboramiz
+                 if (ADMIN_ID && chatId.toString() === ADMIN_ID.toString()) {
+                    await sendSafeMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
+                 } else {
+                    const safeName = user.name ? user.name.replace(/[*_`\[\]()]/g, '') : "Foydalanuvchi";
+                    await sendSafeMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
+                        parse_mode: "Markdown",
+                        ...getMainMenu(chatId)
+                    });
+                 }
                  
                  // Userbotni qayta yuklash (agar o'chib qolgan bo'lsa)
                  if (!userClients[chatId]) {
@@ -510,7 +523,7 @@ bot.onText(/\/block[ _](\d+)/, async (msg, match) => {
             // Markdown belgilarni olib tashlaymiz
             const safeName = user.name ? user.name.replace(/[*_`\[\]()]/g, '') : "Foydalanuvchi";
             
-            await bot.sendMessage(targetId, `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n⚠️ Siz botdan foydalanish uchun botning oylik tulovini amalga oshirmagansiz.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`, { 
+            await bot.sendMessage(targetId, `⚠️ Sizning foydalanish muddatingiz tugagan.\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring.\n\n👨‍💼 Admin: @ortiqov_x7`, { 
                 parse_mode: "Markdown",
                 reply_markup: {
                     inline_keyboard: [
@@ -1039,7 +1052,7 @@ bot.on('callback_query', async (query) => {
                     delete userClients[targetId];
                 }
 
-                const blockMsg = "You are blocked. Contact Admin.";
+                const blockMsg = "⚠️ Sizning foydalanish muddatingiz tugagan.\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring.\n\n👨‍💼 Admin: @ortiqov_x7";
                 await sendSafeMessage(targetId, blockMsg, { 
                     parse_mode: "Markdown",
                     reply_markup: {
@@ -1981,7 +1994,7 @@ async function startAvtoUser(chatId, client, link, limit) {
             }
         } catch (e) {
             console.error("Join error:", e);
-            bot.sendMessage(chatId, "❌ **Xatolik:** Guruhga kirib bo'lmadi.\nLink noto'g'ri yoki bot spamga tushgan bo'lishi mumkin.\n\nDetal: " + e.message, { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "❌ Guruh topilmadi yoki link eskirgan.\nIltimos, guruhda borligingizni tekshiring tekshiring.\n\nDetal: " + e.message, { parse_mode: "Markdown" });
             return;
         }
 
