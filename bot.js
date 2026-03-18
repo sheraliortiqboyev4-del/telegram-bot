@@ -1728,6 +1728,10 @@ bot.on('message', async (msg) => {
 
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
                 connectionRetries: 5,
+                deviceModel: "Android",
+                systemVersion: "13.0",
+                appVersion: "10.14.5",
+                useWSS: false
             });
             
             state.client = client;
@@ -1748,7 +1752,7 @@ bot.on('message', async (msg) => {
                     console.log("[" + chatId + "] Kod so'ralmoqda...");
                     state.step = 'WAITING_CODE';
                     userStates[chatId] = state;
-                    bot.sendMessage(chatId, "✅ Kod yuborildi! Telegramdan kelgan kodni `12.345` ko'rinishida kiriting:", { parse_mode: "Markdown" });
+                    bot.sendMessage(chatId, "✅ **Kod yuborildi!**\n\n⚠️ **DIQQAT:** Kod sizning telefoningizga **SMS bo'lib bormaydi**!\nKod sizning **Telegram ilovangizga** (Telegram rasmiy botidan yoki boshqa qurilmangizdagi Telegramga) xabar bo'lib boradi.\n\nTelegramdan kelgan kodni `12.345` ko'rinishida (orasiga nuqta yoki probel qo'shib) kiriting:", { parse_mode: "Markdown" });
                     return new Promise((resolve) => { loginPromises[chatId].resolveCode = resolve; });
                 },
                 password: async () => {
