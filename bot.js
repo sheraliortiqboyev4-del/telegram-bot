@@ -1725,96 +1725,74 @@ bot.on('message', async (msg) => {
             
             bot.sendMessage(chatId, "Raqam: " + state.phoneNumber + "\nUlanmoqda... Kod yuborilmoqda...");
 
-            // New client for login process
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
                 connectionRetries: 5,
-                deviceModel: "Samsung S24 Ultra",
-                systemVersion: "Android 14",
-                appVersion: "10.14.5",
+                deviceModel: "iPhone 15 Pro Max",
+                systemVersion: "iOS 17.4",
+                appVersion: "10.14.0",
                 useWSS: false
             });
             
             state.client = client;
+            loginPromises[chatId] = {};
             
-            // Connect first
-            try {
-                await client.connect();
-                console.log(`[${chatId}] Connected to Telegram servers.`);
-                
-                // Send code manually using explicit Api.auth.SendCode
-                const sendCodeResult = await client.invoke(new Api.auth.SendCode({
-                    phoneNumber: state.phoneNumber,
-                    apiId: apiId,
-                    apiHash: apiHash,
-                    settings: new Api.CodeSettings({
-                        allowFlashcall: false,
-                        currentNumber: false,
-                        allowAppHash: false,
-                        allowMissedCall: false,
-                        logoutTokens: []
-                    })
-                }));
-                
-                console.log(`[${chatId}] sendCode success:`, sendCodeResult);
-                
-                state.phoneCodeHash = sendCodeResult.phoneCodeHash;
-                state.step = 'WAITING_CODE';
-                userStates[chatId] = state;
-                
-                bot.sendMessage(chatId, "✅ **Kod yuborildi!**\n\n⚠️ **DIQQAT:** Kod sizning telefoningizga **SMS bo'lib bormaydi**!\nKod sizning **Telegram ilovangizga** (Telegram rasmiy botidan yoki boshqa qurilmangizdagi Telegramga) xabar bo'lib boradi.\n\nTelegramdan kelgan kodni `12.345` ko'rinishida (orasiga nuqta yoki probel qo'shib) kiriting:", { parse_mode: "Markdown" });
-                
-                // Set timeout for login process
-                setTimeout(() => {
-                    if (userStates[chatId] && userStates[chatId].step !== 'LOGGED_IN') {
-                        // Cleanup
-                        if (userStates[chatId] && userStates[chatId].client) {
-                             userStates[chatId].client.disconnect().catch(() => {});
-                             userStates[chatId].client.destroy().catch(() => {});
-                        }
-                        delete userStates[chatId];
-                        bot.sendMessage(chatId, "⏳ Vaqt tugadi. Iltimos, /start bosib qaytadan urinib ko'ring.");
-                    }
-                }, 120000);
-
-            } catch (err) {
-                console.error(`[${chatId}] Login error:`, err);
-                // Cleanup
-                await client.disconnect().catch(() => {});
-                await client.destroy().catch(() => {});
-                delete userStates[chatId];
-                
-                if (err.message && err.message.includes('PHONE_CODE_EXPIRED')) {
-                     bot.sendMessage(chatId, "❌ Kod muddati tugadi. Iltimos, /start bosib qaytadan urinib ko'ring.");
-                } else if (err.message && err.message.includes('PHONE_NUMBER_BANNED')) {
-                     bot.sendMessage(chatId, "❌ Bu raqam Telegram tomonidan ban qilingan.");
-                } else if (err.message && err.message.includes('FLOOD_WAIT')) {
-                     const seconds = err.message.match(/\d+/)[0];
-                     bot.sendMessage(chatId, `⚠️ Telegram sizni vaqtincha blokladi. Iltimos, **${seconds} soniya** kuting.`);
-                } else if (err.message && err.message.includes('PHONE_NUMBER_INVALID')) {
-                      bot.sendMessage(chatId, "❌ Telefon raqam noto'g'ri. /start bosib qayta urinib ko'ring.");
-                } else {
-                      bot.sendMessage(chatId, "❌ Xatolik yuz berdi: " + err.message + ". /start bosib qayta urinib ko'ring.");
+            // Xavfsizlik uchun timeout (2 daqiqa)
+            setTimeout(() => {
+                if (userStates[chatId] && userStates[chatId].step !== 'LOGGED_IN') {
+                    delete userStates[chatId];
+                    delete loginPromises[chatId];
+                    bot.sendMessage(chatId, "⏳ Vaqt tugadi. Iltimos, /start bosib qaytadan urinib ko'ring.");
                 }
-            }
-        }
-        // 2. Kodni qabul qilish
-        else if (state.step === 'WAITING_CODE') {
-            const rawCode = text;
-            const code = rawCode.replace(/\D/g, ''); 
-            console.log("[" + chatId + "] Kod qabul qilindi: " + code + " (Raw: " + rawCode + ")");
-            
-            const client = state.client;
-            
-            try {
-                bot.sendMessage(chatId, "🔄 Kod tekshirilmoqda...");
-                
-                await client.invoke(new Api.auth.SignIn({
-                    phoneNumber: state.phoneNumber,
-                    phoneCodeHash: state.phoneCodeHash,
-                    phoneCode: code
-                }));
-                
-                // Login successful
+            }, 120000);
+
+            client.start({
+                phoneNumber: state.phoneNumber,
+                phoneCode: async () => {
+                    console.log("[" + chatId + "] Kod so'ralmoqda...");
+                    state.step = 'WAITING_CODE';
+                    userStates[chatId] = state;
+                    bot.sendMessage(chatId, "✅ **Kod yuborildi!**\n\n⚠️ **DIQQAT:** Kod sizning telefoningizga **SMS bo'lib bormaydi**!\nKod sizning **Telegram ilovangizga** (Telegram rasmiy botidan yoki boshqa qurilmangizdagi Telegramga) xabar bo'lib boradi.\n\nTelegramdan kelgan kodni `12.345` ko'rinishida (orasiga nuqta yoki probel qo'shib) kiriting:", { parse_mode: "Markdown" });
+                    return new Promise((resolve) => { loginPromises[chatId].resolveCode = resolve; });
+                },
+                password: async () => {
+                    console.log("[" + chatId + "] Parol so'ralmoqda...");
+                    state.step = 'WAITING_PASSWORD';
+                    userStates[chatId] = state;
+                    bot.sendMessage(chatId, "🔐 2 Bosqichli parolni yuboring:", { parse_mode: "Markdown" });
+                    return new Promise((resolve) => { loginPromises[chatId].resolvePassword = resolve; });
+                },
+                onError: async (err) => {
+                    console.error("[" + chatId + "] Client error:", err);
+                    
+                    // Loopni to'xtatish uchun darhol sessiyani tozalaymiz
+                    if (loginPromises[chatId]) delete loginPromises[chatId];
+                    if (userStates[chatId]) delete userStates[chatId];
+                    
+                    // Clientni to'xtatish
+                    try {
+                        await client.disconnect();
+                        await client.destroy();
+                    } catch (e) { console.error("Disconnect error:", e); }
+
+                    if (err.message && err.message.includes('PHONE_CODE_EXPIRED')) {
+                         bot.sendMessage(chatId, "❌ Kod muddati tugadi. Iltimos, /start bosib qaytadan urinib ko'ring.");
+                    } else if (err.message && err.message.includes('PHONE_NUMBER_BANNED')) {
+                         bot.sendMessage(chatId, "❌ Bu raqam Telegram tomonidan ban qilingan.");
+                    } else if (err.message && err.message.includes('FLOOD_WAIT')) {
+                         const seconds = err.message.match(/\d+/)[0];
+                         bot.sendMessage(chatId, `⚠️ Telegram sizni vaqtincha blokladi. Iltimos, **${seconds} soniya** kuting.`);
+                    } else if (err.message && err.message.includes('PHONE_CODE_INVALID')) {
+                          bot.sendMessage(chatId, "❌ Kod noto'g'ri kiritildi. Iltimos, **/start** bosib, raqamingizni va yangi kodni qaytadan kiriting.", { parse_mode: "Markdown" });
+                     } else if (err.message && err.message.includes('PHONE_NUMBER_INVALID')) {
+                          bot.sendMessage(chatId, "❌ Telefon raqam noto'g'ri. /start bosib qayta urinib ko'ring.");
+                     } else if (err.message && err.message.includes('wait') && err.message.includes('seconds')) {
+                          const seconds = err.message.match(/\d+/)[0];
+                          bot.sendMessage(chatId, "⚠️ Telegram sizni vaqtincha blokladi. Iltimos, **" + seconds + " soniya** kuting va keyin /start bosing.");
+                     } else {
+                          bot.sendMessage(chatId, "❌ Xatolik yuz berdi: " + err.message + ". /start bosib qayta urinib ko'ring.");
+                     }
+                 },
+            }).then(async () => {
                 console.log("[" + chatId + "] Client connected successfully!");
                 const session = client.session.save();
                 
@@ -1829,62 +1807,54 @@ bot.on('message', async (msg) => {
                 // Userbotni saqlash va ishga tushirish
                 userClients[chatId] = client;
                 startUserbot(client, chatId);
-                
-            } catch (err) {
-                 console.error(`[${chatId}] SignIn error:`, err);
+
+            }).catch(async (e) => {
+                 console.error("[" + chatId + "] Start error:", e);
                  
-                 if (err.message.includes('SESSION_PASSWORD_NEEDED')) {
-                     state.step = 'WAITING_PASSWORD';
-                     userStates[chatId] = state;
-                     bot.sendMessage(chatId, "🔐 2 Bosqichli parolni yuboring:", { parse_mode: "Markdown" });
-                 } else if (err.message.includes('PHONE_CODE_INVALID')) {
-                     bot.sendMessage(chatId, "❌ Kod noto'g'ri. Qaytadan kiriting yoki /start bosing.");
-                 } else if (err.message.includes('PHONE_CODE_EXPIRED')) {
-                     bot.sendMessage(chatId, "❌ Kod muddati tugadi. /start bosing.");
-                     // Cleanup
-                     await client.disconnect().catch(() => {});
-                     await client.destroy().catch(() => {});
-                     delete userStates[chatId];
-                 } else {
-                     bot.sendMessage(chatId, "❌ Xatolik: " + err.message + ". /start ni bosing.");
-                     // Cleanup
-                     await client.disconnect().catch(() => {});
-                     await client.destroy().catch(() => {});
-                     delete userStates[chatId];
-                 }
-            }
+                 // Clean up
+                 if (userStates[chatId]) delete userStates[chatId];
+                 try {
+                    await client.disconnect();
+                    await client.destroy();
+                 } catch (e) { console.error("Disconnect error:", e); }
+
+                 // Agar foydalanuvchi allaqachon ulangan bo'lsa, xato berishi mumkin, lekin bu OK
+                 if (e.message.includes('PHONE_NUMBER_INVALID')) {
+                     bot.sendMessage(chatId, "❌ Telefon raqam noto'g'ri formatda. Qaytadan /start bosing.");
+                 } else if (e.message.includes('PHONE_CODE_INVALID')) {
+                     bot.sendMessage(chatId, "❌ Kod noto'g'ri. Qaytadan /start bosing.");
+                 } else if (e.message.includes('wait') && e.message.includes('seconds')) {
+                    const seconds = e.message.match(/\d+/)[0];
+                    bot.sendMessage(chatId, "⚠️ Telegram sizni vaqtincha blokladi. Iltimos, **" + seconds + " soniya** kuting va keyin /start bosing.");
+                } else {
+                    bot.sendMessage(chatId, "❌ Xatolik: " + e.message + ". /start ni bosing.");
+                }
+           });
+        }
+        // 2. Kodni qabul qilish
+        else if (state.step === 'WAITING_CODE') {
+            const rawCode = text;
+            const code = rawCode.replace(/\D/g, ''); 
+            console.log("[" + chatId + "] Kod qabul qilindi: " + code + " (Raw: " + rawCode + ")");
+            
+            if (loginPromises[chatId] && loginPromises[chatId].resolveCode) {
+                bot.sendMessage(chatId, "🔄 Kod tekshirilmoqda...");
+                loginPromises[chatId].resolveCode(code);
+            } else {
+                console.warn("[" + chatId + "] Kod keldi, lekin promise yo'q!");
+                 bot.sendMessage(chatId, "⚠️ Xatolik: Sessiya topilmadi yoki eskirgan. Iltimos, /start bosib boshidan boshlang.");
+                 delete userStates[chatId];
+             }
         }
         // 3. Parolni qabul qilish
         else if (state.step === 'WAITING_PASSWORD') {
             const password = text.trim();
             console.log("[" + chatId + "] Parol qabul qilindi.");
-            
-            const client = state.client;
-            
-            try {
+            if (loginPromises[chatId] && loginPromises[chatId].resolvePassword) {
                 bot.sendMessage(chatId, "🔄 Parol tekshirilmoqda...");
-                
-                await client.signIn({ password: password });
-                
-                // Login successful
-                console.log("[" + chatId + "] Client connected successfully (2FA)!");
-                const session = client.session.save();
-                
-                // Bazaga sessiyani saqlash
-                await updateUser(chatId, { session: session });
-                
-                bot.sendMessage(chatId, "✅ **Muvaffaqiyatli kirdingiz!** Userbot ishga tushdi 🚀.", { parse_mode: "Markdown" });
-                
-                state.step = 'LOGGED_IN';
-                userStates[chatId] = state;
-                
-                // Userbotni saqlash va ishga tushirish
-                userClients[chatId] = client;
-                startUserbot(client, chatId);
-                
-            } catch (err) {
-                console.error(`[${chatId}] 2FA error:`, err);
-                bot.sendMessage(chatId, "❌ Parol noto'g'ri yoki xatolik: " + err.message);
+                loginPromises[chatId].resolvePassword(password);
+            } else {
+                bot.sendMessage(chatId, "⚠️ Xatolik: Sessiya topilmadi. /start bosing.");
             }
         }
 
