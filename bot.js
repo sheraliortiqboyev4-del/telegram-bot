@@ -1741,14 +1741,19 @@ bot.on('message', async (msg) => {
                 await client.connect();
                 console.log(`[${chatId}] Connected to Telegram servers.`);
                 
-                // Send code manually
-                const sendCodeResult = await client.sendCode(
-                    {
-                        apiId: apiId,
-                        apiHash: apiHash
-                    },
-                    state.phoneNumber
-                );
+                // Send code manually using explicit Api.auth.SendCode
+                const sendCodeResult = await client.invoke(new Api.auth.SendCode({
+                    phoneNumber: state.phoneNumber,
+                    apiId: apiId,
+                    apiHash: apiHash,
+                    settings: new Api.CodeSettings({
+                        allowFlashcall: false,
+                        currentNumber: false,
+                        allowAppHash: false,
+                        allowMissedCall: false,
+                        logoutTokens: []
+                    })
+                }));
                 
                 console.log(`[${chatId}] sendCode success:`, sendCodeResult);
                 
