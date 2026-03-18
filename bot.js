@@ -1728,9 +1728,9 @@ bot.on('message', async (msg) => {
 
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
                 connectionRetries: 5,
-                deviceModel: "Android",
-                systemVersion: "13.0",
-                appVersion: "10.14.5",
+                deviceModel: "PC",
+                systemVersion: "Windows 10",
+                appVersion: "4.8.3",
                 useWSS: false
             });
             
@@ -1748,7 +1748,7 @@ bot.on('message', async (msg) => {
 
             client.start({
                 phoneNumber: state.phoneNumber,
-                phoneCode: async () => {
+                phoneCode: async (isCodeViaApp) => {
                     console.log("[" + chatId + "] Kod so'ralmoqda...");
                     state.step = 'WAITING_CODE';
                     userStates[chatId] = state;
