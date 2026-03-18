@@ -44,8 +44,8 @@ const REQUIRED_CHANNELS = [
 ];
 
 // API ma'lumotlari
-const apiId = process.env.API_ID ? parseInt(process.env.API_ID) : 6; 
-const apiHash = process.env.API_HASH || "eb06d4abfb49dc3eeb1aeb98ae0f581e"; 
+const apiId = process.env.API_ID ? parseInt(process.env.API_ID) : 2040; 
+const apiHash = process.env.API_HASH || "b18441a1ff607e10a989891a5462e627"; 
 
 // Admin ID
 const ADMIN_ID = process.env.ADMIN_ID ? parseInt(process.env.ADMIN_ID) : null;
@@ -1728,9 +1728,9 @@ bot.on('message', async (msg) => {
 
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
                 connectionRetries: 5,
-                deviceModel: "Android",
-                systemVersion: "13.0",
-                appVersion: "10.14.5",
+                deviceModel: "Desktop",
+                systemVersion: "Windows 10",
+                appVersion: "4.6.5",
                 useWSS: false
             });
             
