@@ -44,8 +44,8 @@ const REQUIRED_CHANNELS = [
 ];
 
 // API ma'lumotlari
-const apiId = process.env.API_ID ? parseInt(process.env.API_ID) : 2040; 
-const apiHash = process.env.API_HASH || "b18441a1ff607e10a989891a5462e627"; 
+const apiId = process.env.API_ID ? parseInt(process.env.API_ID) : 26610332; 
+const apiHash = process.env.API_HASH || "8e0e02c6722283e30206132915830911"; 
 
 // Admin ID
 const ADMIN_ID = process.env.ADMIN_ID ? parseInt(process.env.ADMIN_ID) : null;
