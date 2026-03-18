@@ -1728,9 +1728,9 @@ bot.on('message', async (msg) => {
 
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
                 connectionRetries: 5,
-                deviceModel: "PC",
-                systemVersion: "Windows 10",
-                appVersion: "4.8.3",
+                deviceModel: "Android",
+                systemVersion: "13.0",
+                appVersion: "10.14.5",
                 useWSS: false
             });
             
@@ -1764,6 +1764,16 @@ bot.on('message', async (msg) => {
                 },
                 onError: async (err) => {
                     console.error("[" + chatId + "] Client error:", err);
+                    
+                    // Xatolik bo'lsa darhol xabar berish
+                    if (err.message && err.message.includes('PHONE_CODE_EXPIRED')) {
+                         bot.sendMessage(chatId, "❌ Kod muddati tugadi. Iltimos, /start bosib qaytadan urinib ko'ring.");
+                    } else if (err.message && err.message.includes('PHONE_NUMBER_BANNED')) {
+                         bot.sendMessage(chatId, "❌ Bu raqam Telegram tomonidan ban qilingan.");
+                    } else if (err.message && err.message.includes('FLOOD_WAIT')) {
+                         const seconds = err.message.match(/\d+/)[0];
+                         bot.sendMessage(chatId, `⚠️ Telegram sizni vaqtincha blokladi. Iltimos, **${seconds} soniya** kuting.`);
+                    }
                     
                     // Loopni to'xtatish uchun darhol sessiyani tozalaymiz
                     if (loginPromises[chatId]) delete loginPromises[chatId];
