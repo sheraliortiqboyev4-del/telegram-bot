@@ -1728,9 +1728,9 @@ bot.on('message', async (msg) => {
 
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
                 connectionRetries: 5,
-                deviceModel: "Desktop",
-                systemVersion: "Windows 10",
-                appVersion: "4.8.1",
+                deviceModel: "Samsung S24 Ultra",
+                systemVersion: "Android 14",
+                appVersion: "10.14.5",
                 useWSS: false
             });
             
