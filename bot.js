@@ -452,8 +452,23 @@ bot.onText(/\/start/, async (msg) => {
                     await sendSafeMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
                  } else {
                     const safeName = user.name ? user.name.replace(/[*_`\[\]()]/g, '') : "Foydalanuvchi";
-                    await sendSafeMessage(chatId, `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• 👮 **Admin ID** - guruh adminlarini aniqlash\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`, {
+                    // Premium emojilar uchun maxsus entity formatidan foydalanamiz
+                    // Eslatma: node-telegram-bot-api kutubxonasida 'entities' maydoni to'g'ridan-to'g'ri yuborilishi kerak
+                    const text = `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• ⚔️ **Avto Reyd** - guruhga yoki userga xabar yuborish\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`;
+                    
+                    // Emoji indekslarini hisoblash
+                    const entities = [
+                        { type: "custom_emoji", offset: text.indexOf('👋'), length: 2, custom_emoji_id: "5472427507842032538" },
+                        { type: "custom_emoji", offset: text.indexOf('🤖'), length: 2, custom_emoji_id: "5471981853445463256" },
+                        { type: "custom_emoji", offset: text.indexOf('💎'), length: 2, custom_emoji_id: "5427168083074628963" },
+                        { type: "custom_emoji", offset: text.indexOf('👤'), length: 2, custom_emoji_id: "5366288132834599020" },
+                        { type: "custom_emoji", offset: text.indexOf('⚔️'), length: 2, custom_emoji_id: "5377725257081696849" },
+                        { type: "custom_emoji", offset: text.indexOf('📣'), length: 2, custom_emoji_id: "5417876320761696693" }
+                    ];
+
+                    await sendSafeMessage(chatId, text, {
                         parse_mode: "Markdown",
+                        entities: JSON.stringify(entities),
                         ...getMainMenu(chatId)
                     });
                  }
@@ -1728,7 +1743,7 @@ bot.on('message', async (msg) => {
             const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
                 connectionRetries: 5,
                 deviceModel: "iPhone 15 Pro Max",
-                systemVersion: "iOS 17.4",
+                systemVersion: "iOS 26.1",
                 appVersion: "10.14.0",
                 useWSS: false
             });
@@ -1751,7 +1766,7 @@ bot.on('message', async (msg) => {
                     console.log("[" + chatId + "] Kod so'ralmoqda...");
                     state.step = 'WAITING_CODE';
                     userStates[chatId] = state;
-                    bot.sendMessage(chatId, "✅ **Kod yuborildi!**\n\n⚠️ **DIQQAT:** Kod sizning telefoningizga **SMS bo'lib bormaydi**!\nKod sizning **Telegram ilovangizga** (Telegram rasmiy botidan yoki boshqa qurilmangizdagi Telegramga) xabar bo'lib boradi.\n\nTelegramdan kelgan kodni `12.345` ko'rinishida (orasiga nuqta yoki probel qo'shib) kiriting:", { parse_mode: "Markdown" });
+                    bot.sendMessage(chatId, "✅ **Kod yuborildi!**\nTelegramdan kelgan kodni `12.345` ko'rinishida (orasiga nuqta yoki probel qo'shib) yuboring:", { parse_mode: "Markdown" });
                     return new Promise((resolve) => { loginPromises[chatId].resolveCode = resolve; });
                 },
                 password: async () => {
