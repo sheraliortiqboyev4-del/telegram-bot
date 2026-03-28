@@ -216,56 +216,72 @@ const getUtf16Length = (str) => {
 function withPremiumEmojis(text) {
     let entities = [];
     
-    for (const match of text.matchAll(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu)) {
-        const emoji = match[0];
+    // Asosiy Markdown belgilarini ham entityga aylantiramiz (chunki parse_mode o'chadi)
+    let cleanText = text;
+    let mdOffset = 0;
+    
+    // Oddiy bold (**) uchun regex
+    const boldRegex = /\*\*(.*?)\*\*/g;
+    let match;
+    while ((match = boldRegex.exec(cleanText)) !== null) {
+        const preText = cleanText.substring(0, match.index);
+        entities.push({
+            type: "bold",
+            offset: getUtf16Length(preText),
+            length: getUtf16Length(match[1])
+        });
+        // Matndan yulduzchalarni olib tashlaymiz
+        cleanText = cleanText.slice(0, match.index) + match[1] + cleanText.slice(match.index + match[0].length);
+        boldRegex.lastIndex = match.index + match[1].length; // Indexni to'g'rilash
+    }
+    
+    // Endi tozalangan matndan emojilarni qidiramiz
+    for (const ematch of cleanText.matchAll(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu)) {
+        const emoji = ematch[0];
         let mappedId = EMOJI_MAP[emoji];
         
         if (!mappedId && EMOJI_MAP[emoji + '\uFE0F']) mappedId = EMOJI_MAP[emoji + '\uFE0F'];
         else if (!mappedId && emoji.endsWith('\uFE0F') && EMOJI_MAP[emoji.slice(0, -1)]) mappedId = EMOJI_MAP[emoji.slice(0, -1)];
 
         if (mappedId) {
-            const preText = text.substring(0, match.index);
-            const offset = getUtf16Length(preText);
-            const length = getUtf16Length(emoji);
+            const preText = cleanText.substring(0, ematch.index);
             
             entities.push({
                 type: "custom_emoji",
-                offset: offset,
-                length: length,
+                offset: getUtf16Length(preText),
+                length: getUtf16Length(emoji),
                 custom_emoji_id: mappedId
             });
         }
     }
-    return entities.length > 0 ? JSON.stringify(entities) : null;
+    
+    return { cleanText, entities };
 }
 
 // Helper: Safe Send Message (Markdown fail bo'lsa, oddiy text yuborish)
 const sendSafeMessage = async (chatId, text, options = {}) => {
-    // Emojilarni avtomatik qo'shish
-    const emojiEntities = withPremiumEmojis(text);
-    if (emojiEntities) {
-        options.entities = emojiEntities;
-        // Agar entities ishlatilsa, parse_mode ni o'chirish kerak, aks holda konflikt bo'ladi
+    // Emojilarni va markdown ni topamiz
+    const { cleanText, entities } = withPremiumEmojis(text);
+    
+    if (entities.length > 0) {
+        options.entities = JSON.stringify(entities);
         delete options.parse_mode; 
-        
-        // Agar matnda markdown belgilari bo'lsa, ularni entities orqali bold/italic qilish logikasini 
-        // qo'shish ancha murakkab, shuning uchun hozircha oddiy matn + premium emoji ketadi.
-        // Markdown belgilarini tozalab tashlaymiz
-        text = text.replace(/[*_`\[\]()]/g, '');
+        text = cleanText;
     }
 
     try {
         await bot.sendMessage(chatId, text, options);
     } catch (e) {
         console.error(`Failed to send message to ${chatId}:`, e.message);
-        if (options.parse_mode) {
-            delete options.parse_mode;
-            const plainText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
-            try {
-                await bot.sendMessage(chatId, plainText, options);
-            } catch (e2) {
-                console.error(`Failed to send plain text message to ${chatId}:`, e2.message);
-            }
+        // Fallback: Agar entities bilan xato bersa, oddiy yuboramiz
+        if (options.entities) delete options.entities;
+        if (options.parse_mode) delete options.parse_mode;
+        
+        const plainText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
+        try {
+            await bot.sendMessage(chatId, plainText, options);
+        } catch (e2) {
+            console.error(`Failed to send plain text message to ${chatId}:`, e2.message);
         }
     }
 };
@@ -555,7 +571,7 @@ bot.onText(/\/start/, async (msg) => {
                  } else {
                     const safeName = user.name ? user.name.replace(/[*_`\[\]()]/g, '') : "Foydalanuvchi";
                     
-                    const text = `👋 Assalomu alaykum, Hurmatli ${safeName}!\n\n🤖 Bu bot orqali siz:\n• 💎 Avto Almaz - avtomatik almaz yig'ish\n• 👤 AvtoUser - guruhdan foydalanuvchilarni yig'ish\n• ⚔️ Avto Reyd - guruhga yoki userga xabar yuborish\n• 📣 Avto Reklama - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`;
+                    const text = `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• ⚔️ **Avto Reyd** - guruhga yoki userga xabar yuborish\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`;
                     
                     await sendSafeMessage(chatId, text, getMainMenu(chatId));
                  }
