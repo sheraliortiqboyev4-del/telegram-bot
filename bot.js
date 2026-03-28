@@ -149,15 +149,117 @@ setInterval(async () => {
     }
 }, 600000); // 10 daqiqa (600,000 ms)
 
+// Premium Emojilar xaritasi
+const EMOJI_MAP = {
+    '💎': '5427168083074628963',
+    '❌': '5210952531676504517',
+    '✅': '5462919317832082236',
+    '⚠️': '5420323339723881652',
+    '👨': '5474667187258006816', 
+    '💼': '5359785904535774578', 
+    '⏳': '5451732530048802485',
+    '👤': '5305291329419354124', 
+    '🆔': '5334890573281114250',
+    '📢': '5305548297312675223',
+    '💻': '5366288132834599020',
+    '🧾': '5305295963689067405',
+    '⚔️': '5408935401442267103', 
+    '📣': '5424818078833715060', 
+    '📊': '5231200819986047254',
+    '🔄': '5264727218734524899',
+    '👥': '5453957997418004470',
+    '🚫': '5472267631979405211',
+    '🔙': '5253997076169115797',
+    '🚀': '5445284980978621387',
+    '📅': '5472100751025118421',
+    '👋': '5472427507842032538',
+    '👇': '5470177992950946662',
+    '🆕': '5265244349976832702',
+    '🔗': '5305789962237518029',
+    '⛔': '5260293700088511294',
+    'ℹ️': '5334544901428229844',
+    '🤖': '5372981976804366741',
+    '🎉': '5388674524583572460',
+    '👑': '5217822164362739968',
+    '📛': '5260293700088511294',
+    '🔰': '5266987140331379962',
+    '📋': '5174771276203427153',
+    '📌': '5397782960512444700',
+    '📂': '5431721976769027887',
+    '⚙️': '5341715473882955310',
+    '🟢': '5416081784641168838',
+    '🔴': '5411225014148014586',
+    '🔌': '5339517760592421605',
+    '⏸': '5359543311897998264',
+    '⏹': '5467643373835815896',
+    '🛑': '5472030751648127392',
+    '▶️': '5348125953090403204',
+    '🔢': '5467370987009909520',
+    '📝': '5334882760735598374',
+    '🔐': '5472308992514464048',
+    '🏁': '5411520005386806155',
+    '📦': '5271923685547058434',
+    '🎁': '5190527303599283765',
+    '💵': '5215239948420003628'
+};
+
+// UTF-16 asosida matn uzunligini to'g'ri hisoblash
+const getUtf16Length = (str) => {
+    let length = 0;
+    for (let i = 0; i < str.length; i++) {
+        length += str.charCodeAt(i) > 0xFFFF ? 2 : 1;
+    }
+    return length;
+};
+
+// Matn ichidan barcha emojilarni topib, ularni custom_emoji entitylariga aylantiruvchi universal funksiya
+function withPremiumEmojis(text) {
+    let entities = [];
+    
+    for (const match of text.matchAll(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu)) {
+        const emoji = match[0];
+        let mappedId = EMOJI_MAP[emoji];
+        
+        if (!mappedId && EMOJI_MAP[emoji + '\uFE0F']) mappedId = EMOJI_MAP[emoji + '\uFE0F'];
+        else if (!mappedId && emoji.endsWith('\uFE0F') && EMOJI_MAP[emoji.slice(0, -1)]) mappedId = EMOJI_MAP[emoji.slice(0, -1)];
+
+        if (mappedId) {
+            const preText = text.substring(0, match.index);
+            const offset = getUtf16Length(preText);
+            const length = getUtf16Length(emoji);
+            
+            entities.push({
+                type: "custom_emoji",
+                offset: offset,
+                length: length,
+                custom_emoji_id: mappedId
+            });
+        }
+    }
+    return entities.length > 0 ? JSON.stringify(entities) : null;
+}
+
 // Helper: Safe Send Message (Markdown fail bo'lsa, oddiy text yuborish)
 const sendSafeMessage = async (chatId, text, options = {}) => {
+    // Emojilarni avtomatik qo'shish
+    const emojiEntities = withPremiumEmojis(text);
+    if (emojiEntities) {
+        options.entities = emojiEntities;
+        // Agar entities ishlatilsa, parse_mode ni o'chirish kerak, aks holda konflikt bo'ladi
+        delete options.parse_mode; 
+        
+        // Agar matnda markdown belgilari bo'lsa, ularni entities orqali bold/italic qilish logikasini 
+        // qo'shish ancha murakkab, shuning uchun hozircha oddiy matn + premium emoji ketadi.
+        // Markdown belgilarini tozalab tashlaymiz
+        text = text.replace(/[*_`\[\]()]/g, '');
+    }
+
     try {
         await bot.sendMessage(chatId, text, options);
     } catch (e) {
-        console.error(`Failed to send Markdown message to ${chatId}:`, e.message);
+        console.error(`Failed to send message to ${chatId}:`, e.message);
         if (options.parse_mode) {
             delete options.parse_mode;
-            // Markdown belgilarni olib tashlash (oddiy matn uchun)
             const plainText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
             try {
                 await bot.sendMessage(chatId, plainText, options);
@@ -455,34 +557,7 @@ bot.onText(/\/start/, async (msg) => {
                     
                     const text = `👋 Assalomu alaykum, Hurmatli ${safeName}!\n\n🤖 Bu bot orqali siz:\n• 💎 Avto Almaz - avtomatik almaz yig'ish\n• 👤 AvtoUser - guruhdan foydalanuvchilarni yig'ish\n• ⚔️ Avto Reyd - guruhga yoki userga xabar yuborish\n• 📣 Avto Reklama - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`;
                     
-                    // UTF-16 asosida to'g'ri offset va uzunlik hisoblash
-                    const getUtf16Offset = (str, search) => {
-                        let offset = 0;
-                        for (let i = 0; i < str.indexOf(search); i++) {
-                            offset += str.charCodeAt(i) > 0xFFFF ? 2 : 1;
-                        }
-                        return offset;
-                    };
-                    
-                    const entities = [
-                        { type: "bold", offset: getUtf16Offset(text, safeName), length: safeName.length },
-                        { type: "bold", offset: getUtf16Offset(text, 'Bu bot orqali siz:'), length: 18 },
-                        { type: "bold", offset: getUtf16Offset(text, 'Avto Almaz'), length: 10 },
-                        { type: "bold", offset: getUtf16Offset(text, 'AvtoUser'), length: 8 },
-                        { type: "bold", offset: getUtf16Offset(text, 'Avto Reyd'), length: 9 },
-                        { type: "bold", offset: getUtf16Offset(text, 'Avto Reklama'), length: 12 },
-                        { type: "custom_emoji", offset: getUtf16Offset(text, '👋'), length: 2, custom_emoji_id: "5472427507842032538" },
-                        { type: "custom_emoji", offset: getUtf16Offset(text, '🤖'), length: 2, custom_emoji_id: "5471981853445463256" },
-                        { type: "custom_emoji", offset: getUtf16Offset(text, '💎'), length: 2, custom_emoji_id: "5427168083074628963" },
-                        { type: "custom_emoji", offset: getUtf16Offset(text, '👤'), length: 2, custom_emoji_id: "5366288132834599020" },
-                        { type: "custom_emoji", offset: getUtf16Offset(text, '⚔️'), length: 2, custom_emoji_id: "5377725257081696849" },
-                        { type: "custom_emoji", offset: getUtf16Offset(text, '📣'), length: 2, custom_emoji_id: "5417876320761696693" }
-                    ];
-
-                    await bot.sendMessage(chatId, text, {
-                        entities: JSON.stringify(entities),
-                        ...getMainMenu(chatId)
-                    });
+                    await sendSafeMessage(chatId, text, getMainMenu(chatId));
                  }
                  
                  // Userbotni qayta yuklash (agar o'chib qolgan bo'lsa)
