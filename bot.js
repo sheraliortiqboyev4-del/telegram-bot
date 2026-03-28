@@ -453,12 +453,24 @@ bot.onText(/\/start/, async (msg) => {
                  } else {
                     const safeName = user.name ? user.name.replace(/[*_`\[\]()]/g, '') : "Foydalanuvchi";
                     
-                    const text = `👋 Assalomu alaykum, Hurmatli *${safeName}*!\n\n🤖 *Bu bot orqali siz:*\n• 💎 *Avto Almaz* - avtomatik almaz yig'ish\n• 👤 *AvtoUser* - guruhdan foydalanuvchilarni yig'ish\n• ⚔️ *Avto Reyd* - guruhga yoki userga xabar yuborish\n• 📣 *Avto Reklama* - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`;
+                    const text = `👋 Assalomu alaykum, Hurmatli ${safeName}!\n\n🤖 Bu bot orqali siz:\n• 💎 Avto Almaz - avtomatik almaz yig'ish\n• 👤 AvtoUser - guruhdan foydalanuvchilarni yig'ish\n• ⚔️ Avto Reyd - guruhga yoki userga xabar yuborish\n• 📣 Avto Reklama - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`;
                     
                     // UTF-16 asosida to'g'ri offset va uzunlik hisoblash
-                    const getUtf16Offset = (str, search) => str.indexOf(search);
+                    const getUtf16Offset = (str, search) => {
+                        let offset = 0;
+                        for (let i = 0; i < str.indexOf(search); i++) {
+                            offset += str.charCodeAt(i) > 0xFFFF ? 2 : 1;
+                        }
+                        return offset;
+                    };
                     
                     const entities = [
+                        { type: "bold", offset: getUtf16Offset(text, safeName), length: safeName.length },
+                        { type: "bold", offset: getUtf16Offset(text, 'Bu bot orqali siz:'), length: 18 },
+                        { type: "bold", offset: getUtf16Offset(text, 'Avto Almaz'), length: 10 },
+                        { type: "bold", offset: getUtf16Offset(text, 'AvtoUser'), length: 8 },
+                        { type: "bold", offset: getUtf16Offset(text, 'Avto Reyd'), length: 9 },
+                        { type: "bold", offset: getUtf16Offset(text, 'Avto Reklama'), length: 12 },
                         { type: "custom_emoji", offset: getUtf16Offset(text, '👋'), length: 2, custom_emoji_id: "5472427507842032538" },
                         { type: "custom_emoji", offset: getUtf16Offset(text, '🤖'), length: 2, custom_emoji_id: "5471981853445463256" },
                         { type: "custom_emoji", offset: getUtf16Offset(text, '💎'), length: 2, custom_emoji_id: "5427168083074628963" },
@@ -468,7 +480,6 @@ bot.onText(/\/start/, async (msg) => {
                     ];
 
                     await bot.sendMessage(chatId, text, {
-                        parse_mode: "Markdown",
                         entities: JSON.stringify(entities),
                         ...getMainMenu(chatId)
                     });
