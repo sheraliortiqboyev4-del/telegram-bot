@@ -85,6 +85,60 @@ const User = mongoose.model('User', userSchema);
 // Botni yaratish
 const bot = new TelegramBot(token, { polling: true });
 
+// Asl sendMessage va editMessageText funksiyalarini saqlab qolish
+const originalSendMessage = bot.sendMessage.bind(bot);
+const originalEditMessageText = bot.editMessageText.bind(bot);
+
+// Emojilarni to'g'rilovchi bot.sendMessage interceptori
+bot.sendMessage = async function(chatId, text, options = {}) {
+    const { cleanText, entities } = withPremiumEmojis(text);
+    
+    let finalOptions = { ...options };
+    
+    if (entities.length > 0) {
+        finalOptions.entities = JSON.stringify(entities);
+        delete finalOptions.parse_mode; 
+        text = cleanText;
+    }
+
+    try {
+        return await originalSendMessage(chatId, text, finalOptions);
+    } catch (e) {
+        console.error(`Failed to send message to ${chatId}:`, e.message);
+        // Fallback
+        if (finalOptions.entities) delete finalOptions.entities;
+        if (finalOptions.parse_mode) delete finalOptions.parse_mode;
+        
+        const plainText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
+        return await originalSendMessage(chatId, plainText, finalOptions);
+    }
+};
+
+// Emojilarni to'g'rilovchi bot.editMessageText interceptori
+bot.editMessageText = async function(text, options = {}) {
+    const { cleanText, entities } = withPremiumEmojis(text);
+    
+    let finalOptions = { ...options };
+    
+    if (entities.length > 0) {
+        finalOptions.entities = JSON.stringify(entities);
+        delete finalOptions.parse_mode; 
+        text = cleanText;
+    }
+
+    try {
+        return await originalEditMessageText(text, finalOptions);
+    } catch (e) {
+        console.error(`Failed to edit message:`, e.message);
+        // Fallback
+        if (finalOptions.entities) delete finalOptions.entities;
+        if (finalOptions.parse_mode) delete finalOptions.parse_mode;
+        
+        const plainText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
+        return await originalEditMessageText(plainText, finalOptions);
+    }
+};
+
 // Error Handling
 bot.on('polling_error', (error) => {
     console.error(`[Polling Error] ${error.code}: ${error.message}`);
@@ -258,32 +312,9 @@ function withPremiumEmojis(text) {
     return { cleanText, entities };
 }
 
-// Helper: Safe Send Message (Markdown fail bo'lsa, oddiy text yuborish)
+// Helper: Safe Send Message (Eski funksiyani shunchaki wrapper qilamiz, chunki asosiy logika endi bot.sendMessage o'zida)
 const sendSafeMessage = async (chatId, text, options = {}) => {
-    // Emojilarni va markdown ni topamiz
-    const { cleanText, entities } = withPremiumEmojis(text);
-    
-    if (entities.length > 0) {
-        options.entities = JSON.stringify(entities);
-        delete options.parse_mode; 
-        text = cleanText;
-    }
-
-    try {
-        await bot.sendMessage(chatId, text, options);
-    } catch (e) {
-        console.error(`Failed to send message to ${chatId}:`, e.message);
-        // Fallback: Agar entities bilan xato bersa, oddiy yuboramiz
-        if (options.entities) delete options.entities;
-        if (options.parse_mode) delete options.parse_mode;
-        
-        const plainText = text.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
-        try {
-            await bot.sendMessage(chatId, plainText, options);
-        } catch (e2) {
-            console.error(`Failed to send plain text message to ${chatId}:`, e2.message);
-        }
-    }
+    return await bot.sendMessage(chatId, text, options);
 };
 
 // Helper: Escape Markdown
