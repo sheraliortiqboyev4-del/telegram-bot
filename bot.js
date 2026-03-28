@@ -452,21 +452,22 @@ bot.onText(/\/start/, async (msg) => {
                     await sendSafeMessage(chatId, "👋 Salom Admin! Tizimga xush kelibsiz.\n\n👇 Quyidagi menyudan foydalanishingiz mumkin:", getMainMenu(chatId));
                  } else {
                     const safeName = user.name ? user.name.replace(/[*_`\[\]()]/g, '') : "Foydalanuvchi";
-                    // Premium emojilar uchun maxsus entity formatidan foydalanamiz
-                    // Eslatma: node-telegram-bot-api kutubxonasida 'entities' maydoni to'g'ridan-to'g'ri yuborilishi kerak
-                    const text = `👋 Assalomu alaykum, Hurmatli **${safeName}**!\n\n🤖 **Bu bot orqali siz:**\n• 💎 **Avto Almaz** - avtomatik almaz yig'ish\n• 👤 **AvtoUser** - guruhdan foydalanuvchilarni yig'ish\n• ⚔️ **Avto Reyd** - guruhga yoki userga xabar yuborish\n• 📣 **Avto Reklama** - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`;
                     
-                    // Emoji indekslarini hisoblash
+                    const text = `👋 Assalomu alaykum, Hurmatli *${safeName}*!\n\n🤖 *Bu bot orqali siz:*\n• 💎 *Avto Almaz* - avtomatik almaz yig'ish\n• 👤 *AvtoUser* - guruhdan foydalanuvchilarni yig'ish\n• ⚔️ *Avto Reyd* - guruhga yoki userga xabar yuborish\n• 📣 *Avto Reklama* - foydalanuvchilarga reklama yuborish\n\nBotdan foydalanish uchun menudan tanlang!`;
+                    
+                    // UTF-16 asosida to'g'ri offset va uzunlik hisoblash
+                    const getUtf16Offset = (str, search) => str.indexOf(search);
+                    
                     const entities = [
-                        { type: "custom_emoji", offset: text.indexOf('👋'), length: 2, custom_emoji_id: "5472427507842032538" },
-                        { type: "custom_emoji", offset: text.indexOf('🤖'), length: 2, custom_emoji_id: "5471981853445463256" },
-                        { type: "custom_emoji", offset: text.indexOf('💎'), length: 2, custom_emoji_id: "5427168083074628963" },
-                        { type: "custom_emoji", offset: text.indexOf('👤'), length: 2, custom_emoji_id: "5366288132834599020" },
-                        { type: "custom_emoji", offset: text.indexOf('⚔️'), length: 2, custom_emoji_id: "5377725257081696849" },
-                        { type: "custom_emoji", offset: text.indexOf('📣'), length: 2, custom_emoji_id: "5417876320761696693" }
+                        { type: "custom_emoji", offset: getUtf16Offset(text, '👋'), length: 2, custom_emoji_id: "5472427507842032538" },
+                        { type: "custom_emoji", offset: getUtf16Offset(text, '🤖'), length: 2, custom_emoji_id: "5471981853445463256" },
+                        { type: "custom_emoji", offset: getUtf16Offset(text, '💎'), length: 2, custom_emoji_id: "5427168083074628963" },
+                        { type: "custom_emoji", offset: getUtf16Offset(text, '👤'), length: 2, custom_emoji_id: "5366288132834599020" },
+                        { type: "custom_emoji", offset: getUtf16Offset(text, '⚔️'), length: 2, custom_emoji_id: "5377725257081696849" },
+                        { type: "custom_emoji", offset: getUtf16Offset(text, '📣'), length: 2, custom_emoji_id: "5417876320761696693" }
                     ];
 
-                    await sendSafeMessage(chatId, text, {
+                    await bot.sendMessage(chatId, text, {
                         parse_mode: "Markdown",
                         entities: JSON.stringify(entities),
                         ...getMainMenu(chatId)
