@@ -553,6 +553,24 @@ bot.onText(/\/start/, async (msg) => {
             user = await updateUser(chatId, { name, username });
         }
 
+        // Real-time muddat tekshirish (faqat admin bo'lmasa)
+        const isAdmin = ADMIN_ID && chatId.toString() === ADMIN_ID.toString();
+        if (user.status === 'approved' && user.expireAt && !isAdmin) {
+            const now = new Date();
+            if (user.expireAt < now) {
+                console.log(`[Real-time Expiry] User ${chatId} muddati tugagan.`);
+                user.status = 'blocked';
+                await updateUser(chatId, { status: 'blocked', session: null, expiryWarningSent: false });
+                if (userClients[chatId]) {
+                    try {
+                        await userClients[chatId].disconnect();
+                        await userClients[chatId].destroy();
+                        delete userClients[chatId];
+                    } catch (e) {}
+                }
+            }
+        }
+
         if (user.status === 'blocked' || user.status === 'pending') {
             await sendSafeMessage(chatId, payMessage, payOptions);
 
@@ -957,6 +975,34 @@ bot.on('callback_query', async (query) => {
             await sendSubscriptionAsk(chatId);
             await bot.answerCallbackQuery(query.id);
             return;
+        }
+    }
+
+    // Real-time muddat tekshirish (faqat admin bo'lmasa)
+    if (chatId !== ADMIN_ID) {
+        const user = await getUser(chatId);
+        if (user && user.status === 'approved' && user.expireAt) {
+            const now = new Date();
+            if (user.expireAt < now) {
+                console.log(`[Real-time Expiry Callback] User ${chatId} muddati tugagan.`);
+                await updateUser(chatId, { status: 'blocked', session: null, expiryWarningSent: false });
+                if (userClients[chatId]) {
+                    try {
+                        await userClients[chatId].disconnect();
+                        await userClients[chatId].destroy();
+                        delete userClients[chatId];
+                    } catch (e) {}
+                }
+                const payMessage = `👋 Assalomu alaykum!\n\n⚠️ Sizning botdan foydalanish muddatingiz tugagan.\n⚠️ Botdan foydalanishni davom ettirish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`;
+                await bot.sendMessage(chatId, payMessage, {
+                    parse_mode: "Markdown",
+                    reply_markup: {
+                        inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
+                    }
+                });
+                await bot.answerCallbackQuery(query.id);
+                return;
+            }
         }
     }
 
@@ -1798,6 +1844,31 @@ bot.on('message', async (msg) => {
 
     let state = userStates[chatId];
     const user = await getUser(chatId);
+
+    // Real-time muddat tekshirish (faqat admin bo'lmasa)
+    if (chatId !== ADMIN_ID && user && user.status === 'approved' && user.expireAt) {
+        const now = new Date();
+        if (user.expireAt < now) {
+            console.log(`[Real-time Expiry Message] User ${chatId} muddati tugagan.`);
+            await updateUser(chatId, { status: 'blocked', session: null, expiryWarningSent: false });
+            if (userClients[chatId]) {
+                try {
+                    await userClients[chatId].disconnect();
+                    await userClients[chatId].destroy();
+                    delete userClients[chatId];
+                } catch (e) {}
+            }
+            const payMessage = `👋 Assalomu alaykum!\n\n⚠️ Sizning botdan foydalanish muddatingiz tugagan.\n⚠️ Botdan foydalanish uchun admin orqali to'lov qiling !!!\n\n👨‍💼 Admin: @ortiqov_x7`;
+            await bot.sendMessage(chatId, payMessage, {
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
+                }
+            });
+            return;
+        }
+    }
+
     if (!state) return;
 
     // Admin broadcast mantiqi (Faqat admin uchun)
@@ -2884,6 +2955,19 @@ async function startUserbot(client, chatId) {
     client.addEventHandler(async (event) => {
         const message = event.message;
 
+        // Real-time muddat tekshirish (faqat admin bo'lmasa)
+        if (chatId !== ADMIN_ID) {
+            const user = await getUser(chatId);
+            if (user && user.status === 'approved' && user.expireAt) {
+                const now = new Date();
+                if (user.expireAt < now) {
+                    console.log(`[Real-time Userbot Expiry] User ${chatId} muddati tugagan.`);
+                    await blockExpiredUser(user);
+                    return;
+                }
+            }
+        }
+
         // Agar funksiya o'chirilgan bo'lsa, ishlamaydi
         if (avtoAlmazStates[chatId] === false) return;
         
@@ -3018,6 +3102,25 @@ function formatDuration(ms) {
     return parts.join(' ') || "0 minut";
 }
 
+async function blockExpiredUser(user) {
+    console.log(`[Expiry Task] User ${user.chatId} muddati tugadi.`);
+    await updateUser(user.chatId, { status: 'blocked', session: null, expiryWarningSent: false });
+    if (userClients[user.chatId]) {
+        try {
+            await userClients[user.chatId].disconnect();
+            await userClients[user.chatId].destroy();
+            delete userClients[user.chatId];
+        } catch (e) { console.error(`Error disconnecting ${user.chatId}:`, e); }
+    }
+    const blockMsg = "👋 Assalomu alaykum!\n\n⚠️ Sizning foydalanish muddatingiz tugagan.\n⚠️ Botdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring.\n\n👨‍💼 Admin: @ortiqov_x7";
+    await sendSafeMessage(user.chatId, blockMsg, { 
+        parse_mode: "Markdown",
+        reply_markup: {
+            inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
+        }
+    });
+}
+
 async function checkExpirations() {
     try {
         const now = new Date();
@@ -3029,22 +3132,7 @@ async function checkExpirations() {
         });
 
         for (const user of expiredUsers) {
-            console.log(`[Expiry] User ${user.chatId} muddati tugadi.`);
-            await updateUser(user.chatId, { status: 'blocked', session: null, expiryWarningSent: false });
-            if (userClients[user.chatId]) {
-                try {
-                    await userClients[user.chatId].disconnect();
-                    await userClients[user.chatId].destroy();
-                    delete userClients[user.chatId];
-                } catch (e) { console.error(`Error disconnecting ${user.chatId}:`, e); }
-            }
-            const blockMsg = "⚠️ Sizning foydalanish muddatingiz tugadi.\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring.\n\n👨‍💼 Admin: @ortiqov_x7";
-            await sendSafeMessage(user.chatId, blockMsg, { 
-                parse_mode: "Markdown",
-                reply_markup: {
-                    inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
-                }
-            });
+            await blockExpiredUser(user);
         }
 
         // 2. 1 kun muddat qolganlarni ogohlantirish
@@ -3077,8 +3165,8 @@ async function checkExpirations() {
     }
 }
 
-// Har 10 minutda tekshirish
-setInterval(checkExpirations, 10 * 60 * 1000);
+// Har 1 daqiqada tekshirish
+setInterval(checkExpirations, 60 * 1000);
 
 // Bot qayta ishga tushganda sessiyalarni tiklash
 async function restoreUserSession(chatId, sessionString) {
