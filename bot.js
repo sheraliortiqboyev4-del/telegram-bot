@@ -533,7 +533,7 @@ bot.onText(/\/start/, async (msg) => {
             // Adminga xabar berish (Inline buttonlar bilan)
             if (ADMIN_ID) {
                 try {
-                    await sendSafeMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${safeName}${username ? `\n🔗 Username: @${username}` : ''}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)`, {
+                    await sendSafeMessage(ADMIN_ID, `🆕 **Yangi foydalanuvchi ro'yxatdan o'tdi!**\n👤 Ism: ${safeName}\n🔗 Username: ${username ? `@${username}` : 'Yo\'q'}\n🆔 ID: \`${chatId}\`\nStatus: Pending (Tasdiqlash kutilmoqda)`, {
                         parse_mode: "Markdown",
                         reply_markup: {
                             inline_keyboard: [
@@ -1146,7 +1146,7 @@ bot.on('callback_query', async (query) => {
             pageUsers.forEach(u => {
                 const statusIcon = u.status === 'approved' ? '✅' : (u.status === 'blocked' ? '⛔️' : '⏳');
                 const name = escapeMarkdown(u.name || "Noma'lum");
-                const username = u.username ? `(@${escapeMarkdown(u.username)})` : "";
+                const username = u.username ? `(@${u.username})` : "";
                 
                 const d = new Date(u.joinedAt);
                 const year = d.getFullYear();
@@ -1157,7 +1157,7 @@ bot.on('callback_query', async (query) => {
                 const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}`;
 
                 listMessage += `👤 ${name} ${username} ${statusIcon}\n`;
-                listMessage += `🆔 \`${u.chatId}\`\n`;
+                listMessage += `🆔 \`${u.chatId}\` | /info_${u.chatId}\n`;
                 listMessage += `📅 ${formattedDate}\n\n`;
             });
             
