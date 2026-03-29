@@ -222,7 +222,7 @@ const EMOJI_MAP = {
     '📣': '5424818078833715060', 
     '📊': '5231200819986047254',
     '🔄': '5264727218734524899',
-    '👥': '5453957997418004470',
+    '👥': '5305733135525224451',
     '🚫': '5472267631979405211',
     '🔙': '5253997076169115797',
     '🚀': '5445284980978621387',
@@ -403,7 +403,7 @@ function getAdminMenu() {
             inline_keyboard: [
                 [{ text: "📊 Statistika", callback_data: "admin_stats" }, { text: "👥 Barcha A'zolar", callback_data: "admin_all_users" }],
                 [{ text: "⏳ Kutilayotganlar", callback_data: "admin_pending" }, { text: "✅ Tasdiqlanganlar", callback_data: "admin_approved" }],
-                [{ text: "🚫 Bloklanganlar", callback_data: "admin_blocked" }],
+                [{ text: "🚫 Bloklanganlar", callback_data: "admin_blocked" }, { text: "📣 Barchaga Xabar", callback_data: "admin_broadcast" }],
                 [{ text: "🔙 Orqaga", callback_data: "menu_back_main" }]
             ],
             resize_keyboard: true
@@ -487,14 +487,7 @@ bot.onText(/\/start/, async (msg) => {
         
         console.log(`User started: ${name} (${chatId})`);
 
-        // --- OBUNA TEKSHIRISH ---
-        if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0) {
-            const isMember = await checkMembership(chatId);
-            if (!isMember) {
-                await sendSubscriptionAsk(chatId);
-                return;
-            }
-        }
+        // --- OBUNA TEKSHIRISH O'CHIRILDI ---
 
         let user = await getUser(chatId);
         
@@ -559,11 +552,11 @@ bot.onText(/\/start/, async (msg) => {
             user = await updateUser(chatId, { name, username });
         }
 
-        if (user.status === 'blocked') {
+        if (user.status === 'blocked' || user.status === 'pending') {
             await sendSafeMessage(chatId, payMessage, payOptions);
 
-            // Adminga xabar berish
-            if (ADMIN_ID) {
+            // Adminga xabar berish (faqat yangi emas, har safar bloklanganda)
+            if (ADMIN_ID && user.status === 'blocked') {
                 try {
                     await sendSafeMessage(ADMIN_ID, `⛔️ **Bloklangan foydalanuvchi qaytdi!**\n👤 Ism: ${safeName}\n🆔 ID: \`${chatId}\`\n📅 Vaqt: ${new Date().toLocaleString()}`, {
                         parse_mode: "Markdown",
@@ -940,7 +933,7 @@ bot.on('callback_query', async (query) => {
     }
 
     // Har qanday tugma bosilganda ham obunani tekshirish (agar admin bo'lmasa)
-    if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0) {
+    if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0 && chatId !== ADMIN_ID) {
         const isMember = await checkMembership(chatId);
         if (!isMember) {
             await sendSubscriptionAsk(chatId);
@@ -957,6 +950,17 @@ bot.on('callback_query', async (query) => {
                 message_id: messageId,
                 parse_mode: "Markdown",
                 reply_markup: getAdminMenu().reply_markup
+            });
+            await bot.answerCallbackQuery(query.id);
+            return;
+        }
+
+        if (data === 'admin_broadcast') {
+            userStates[chatId] = { step: 'WAITING_ADMIN_BROADCAST' };
+            await bot.sendMessage(chatId, "📣 **Xabar yuborish rejimi.**\n\nBarcha a'zolarga yubormoqchi bo'lgan xabaringizni yozing (Matn, Rasm, Stiker, Premium emoji - barchasi ishlaydi):", {
+                reply_markup: {
+                    inline_keyboard: [[{ text: "🔙 Bekor qilish", callback_data: "admin_panel" }]]
+                }
             });
             await bot.answerCallbackQuery(query.id);
             return;
@@ -1024,21 +1028,37 @@ bot.on('callback_query', async (query) => {
             return;
         }
 
-        if (data === 'admin_all_users' || data === 'admin_pending' || data === 'admin_approved' || data === 'admin_blocked') {
+        if (data.startsWith('admin_list_') || data === 'admin_all_users' || data === 'admin_pending' || data === 'admin_approved' || data === 'admin_blocked') {
             const users = await getUsers();
             let filteredUsers = [];
             let title = "";
+            let listType = "";
+            let page = 1;
 
-            if (data === 'admin_all_users') {
+            if (data.startsWith('admin_list_')) {
+                const parts = data.split('_');
+                listType = parts[2]; // all, pending, approved, blocked
+                page = parseInt(parts[3]) || 1;
+            } else {
+                listType = data.split('_')[1]; // all, pending, approved, blocked
+                if (listType === 'all') listType = 'all'; // admin_all_users -> all
+                else if (listType === 'pending') listType = 'pending';
+                else if (listType === 'approved') listType = 'approved';
+                else if (listType === 'blocked') listType = 'blocked';
+                page = 1;
+            }
+
+            if (listType === 'all' || listType === 'users') { // admin_all_users dagi 'users' qismi uchun
                 filteredUsers = users;
                 title = "👥 **Barcha A'zolar:**";
-            } else if (data === 'admin_pending') {
+                listType = 'all';
+            } else if (listType === 'pending') {
                 filteredUsers = users.filter(u => u.status === 'pending');
                 title = "⏳ **Kutilayotganlar:**";
-            } else if (data === 'admin_approved') {
+            } else if (listType === 'approved') {
                 filteredUsers = users.filter(u => u.status === 'approved');
                 title = "✅ **Tasdiqlanganlar:**";
-            } else if (data === 'admin_blocked') {
+            } else if (listType === 'blocked') {
                 filteredUsers = users.filter(u => u.status === 'blocked');
                 title = "🚫 **Bloklanganlar:**";
             }
@@ -1048,10 +1068,18 @@ bot.on('callback_query', async (query) => {
                 return;
             }
 
-            let listMessage = title + "\n\n";
-            const recentUsers = filteredUsers.slice(-20).reverse(); 
+            const pageSize = 15;
+            const totalPages = Math.ceil(filteredUsers.length / pageSize);
+            if (page > totalPages) page = totalPages;
+            if (page < 1) page = 1;
 
-            recentUsers.forEach(u => {
+            const startIndex = (page - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const pageUsers = filteredUsers.slice().reverse().slice(startIndex, endIndex);
+
+            let listMessage = title + ` (Sahifa ${page}/${totalPages})\n\n`;
+
+            pageUsers.forEach(u => {
                 const statusIcon = u.status === 'approved' ? '✅' : (u.status === 'blocked' ? '⛔️' : '⏳');
                 const name = escapeMarkdown(u.name || "Noma'lum");
                 const username = u.username ? `(@${escapeMarkdown(u.username)})` : "";
@@ -1071,14 +1099,36 @@ bot.on('callback_query', async (query) => {
             
             listMessage += "\n📊 **Jami:** " + filteredUsers.length + " ta";
 
+            const keyboard = [];
+            const navRow = [];
+            if (page > 1) {
+                navRow.push({ text: "⬅️ Oldingi", callback_data: `admin_list_${listType}_${page - 1}` });
+            }
+            if (page < totalPages) {
+                navRow.push({ text: "Keyingi ➡️", callback_data: `admin_list_${listType}_${page + 1}` });
+            }
+            if (navRow.length > 0) keyboard.push(navRow);
+            keyboard.push([{ text: "🔙 Admin Menyu", callback_data: "admin_users" }]);
+
             try {
                 await bot.editMessageText(listMessage, {
                     chat_id: chatId,
                     message_id: messageId,
                     parse_mode: "Markdown",
-                    reply_markup: getAdminMenu().reply_markup
+                    reply_markup: {
+                        inline_keyboard: keyboard
+                    }
                 });
-            } catch (e) {}
+            } catch (e) {
+                if (!e.message.includes('message is not modified')) {
+                    await bot.sendMessage(chatId, listMessage, {
+                        parse_mode: "Markdown",
+                        reply_markup: {
+                            inline_keyboard: keyboard
+                        }
+                    });
+                }
+            }
             await bot.answerCallbackQuery(query.id);
             return;
         }
@@ -1709,37 +1759,57 @@ bot.on('message', async (msg) => {
     // Lekin stiker bo'lsa, uni pastda (REYD_CONTENT da) ishlatamiz.
     if (!text && !msg.sticker) return;
 
-    // --- OBUNA TEKSHIRISH (Admin uchun shart emas) ---
-    if (REQUIRED_CHANNELS && REQUIRED_CHANNELS.length > 0) {
-        // Faqat /start bosganda yoki birinchi marta kirganda emas, har doim tekshiradi
-        const isMember = await checkMembership(chatId);
-        if (!isMember) {
-            // Agar /start bo'lsa va a'zo bo'lmasa, salomlashishdan oldin a'zolikni so'rash
-            // Lekin /start logikasi alohida yozilgan, shuning uchun bu yerda return qilamiz
-            if (text === '/start') {
-                // /start handler o'zi tekshiradi yoki bu yerda to'xtatamiz
-                // Keling, /start handlerni o'zida tekshirgan ma'qul, bu yerda esa boshqa xabarlar uchun
-                // Lekin onText(/\/start/) message handlerdan oldin ishlaydi odatda.
-                // Node-telegram-bot-api da onText va on('message') parallel ishlashi mumkin.
-                // Eng yaxshisi, onText ichiga ham qo'shish.
-            } else {
-                await sendSubscriptionAsk(chatId);
-                return;
-            }
-        }
-    }
-
-    // --- MENYU TUGMALARI LOGIKASI ---
-    // (O'chirildi - Inline tugmalarga o'tkazildi)
+    // --- OBUNA TEKSHIRISH O'CHIRILDI (Faqat callback_query'da qoldi) ---
 
     if (text.startsWith('/')) return;
 
     let state = userStates[chatId];
+    const user = await getUser(chatId);
     if (!state) return;
 
-    // Faqat tasdiqlangan userlar login qila oladi
-    const user = await getUser(chatId);
-    if (!user || user.status !== 'approved') return;
+    // Admin broadcast mantiqi (Faqat admin uchun)
+    if (chatId === ADMIN_ID && state.step === 'WAITING_ADMIN_BROADCAST') {
+        const users = await getUsers();
+        let successCount = 0;
+        let failCount = 0;
+
+        bot.sendMessage(chatId, `🚀 **Xabar yuborish boshlandi...**\n📦 Jami foydalanuvchilar: ${users.length} ta`);
+
+        for (const user of users) {
+            try {
+                if (msg.sticker) {
+                    await bot.sendSticker(user.chatId, msg.sticker.file_id);
+                } else if (msg.photo) {
+                    const photo = msg.photo[msg.photo.length - 1].file_id;
+                    await bot.sendPhoto(user.chatId, photo, { caption: msg.caption, caption_entities: msg.caption_entities });
+                } else if (msg.video) {
+                    await bot.sendVideo(user.chatId, msg.video.file_id, { caption: msg.caption, caption_entities: msg.caption_entities });
+                } else if (msg.audio) {
+                    await bot.sendAudio(user.chatId, msg.audio.file_id, { caption: msg.caption, caption_entities: msg.caption_entities });
+                } else if (msg.voice) {
+                    await bot.sendVoice(user.chatId, msg.voice.file_id, { caption: msg.caption, caption_entities: msg.caption_entities });
+                } else if (msg.document) {
+                    await bot.sendDocument(user.chatId, msg.document.file_id, { caption: msg.caption, caption_entities: msg.caption_entities });
+                } else {
+                    await bot.sendMessage(user.chatId, text, { entities: msg.entities });
+                }
+                successCount++;
+            } catch (e) {
+                failCount++;
+            }
+            // Telegram flood limitidan qochish uchun biroz kutamiz (har 20 tadan keyin)
+            if ((successCount + failCount) % 20 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        bot.sendMessage(chatId, `🏁 **Xabar yuborish yakunlandi!**\n\n✅ Muvaffaqiyatli: ${successCount}\n❌ O'xshamadimi: ${failCount}`, getAdminMenu());
+        delete userStates[chatId];
+        return;
+    }
+
+    // Faqat tasdiqlangan userlar login qila oladi (Admin broadcastdan tashqari)
+    if (user && user.status !== 'approved' && chatId !== ADMIN_ID) return;
 
     // try {
         // --- REKLAMA LOGIKASI ---
