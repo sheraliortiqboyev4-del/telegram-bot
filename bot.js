@@ -77,7 +77,8 @@ const userSchema = new mongoose.Schema({
     joinedAt: { type: Date, default: Date.now },
     reydCount: { type: Number, default: 0 },
     usersGathered: { type: Number, default: 0 },
-    adsCount: { type: Number, default: 0 }
+    adsCount: { type: Number, default: 0 },
+    avtoAlmaz: { type: Boolean, default: true }
 });
 
 const User = mongoose.model('User', userSchema);
@@ -236,7 +237,7 @@ const EMOJI_MAP = {
     '🎉': '5388674524583572460',
     '👑': '5217822164362739968',
     '📛': '5260293700088511294',
-    '🔰': '5266987140331379962',
+    '🔰': '5282843764451195532',
     '📋': '5174771276203427153',
     '📌': '5397782960512444700',
     '📂': '5431721976769027887',
@@ -254,7 +255,12 @@ const EMOJI_MAP = {
     '🏁': '5411520005386806155',
     '📦': '5271923685547058434',
     '🎁': '5190527303599283765',
-    '💵': '5215239948420003628'
+    '💵': '5215239948420003628',
+    '👉': '5471978009449731768',
+    '✍️': '5470060791883374114',
+    '📞': '5467538555158943525',
+    '⏰': '4904882772637648609',
+
 };
 
 // UTF-16 asosida matn uzunligini to'g'ri hisoblash
@@ -874,39 +880,39 @@ bot.onText(/\/rek/, async (msg) => {
     bot.sendMessage(chatId, "🚀 **Avto Reklama**\n\nIltimos, reklama yuboriladigan foydalanuvchilar username-larini yuboring.\n\n_Misol:_\n@user1\n@user2\n@user3\n\n(Maksimum 100 ta username)", { parse_mode: "Markdown" });
 });
 
-const HELP_TEXT = `🧾 **Yordam**
+const HELP_TEXT = `🧾 **YORDAM**
 
-📌 **Funksiyalar:**
+📌 **FUNKSIYALAR :**
 
 💎 **Avto Almaz :**
 Guruhlarda almazli tugmalarni avtomatik bosadi.
-
-Avto Almaz Knopkasida Bir marta bosish orqali almazlarni yig'ishni boshlaydi. Agar yana bir marta bosilsa almazlarni yig'ishni to'xtatadi.
+Avto Almaz knopkasini  bosish orqali almaz yig‘ishni yoqib o'chirsa bo'ladi .
 
 👤 **AvtoUser :**
 🔗 Guruh linki va limitni kiriting.
+Guruhdan foydalanuvchilarning userlarini yig‘adi va sizga yuboradi.
+Maksimal: 1000 ta user
+⏳ Jarayon vaqt olishi mumkin, iltimos sabrli bo‘ling.
 
-Guruhdan foydalanuvchilarni userlarini yig'adi va sizga yuboradi maksimal 1000 ta (yuser yig'ish jarayoni vaqt olishi mumkin iltimos sabirli bo'ling).
-
-
-👨‍💼 **Avto reyd :**
-Guruxga yoki berilgan Userga avto xabar yuboradi.
-Matn va Stikerlarni qo'llab quvvatlaydi.
-
+👨‍💼 **Avto Reyd :**
+Guruhga yoki berilgan userga avtomatik xabar yuboradi.
+📩 Matn va stikerlarni qo‘llab-quvvatlaydi.
 🔗 Guruh linki yoki user va limitni kiriting.
 
 📢 **Avto Reklama :**
-Siz botga yuborgan 100 ta yuserga reklama yuboradi.(unutmang 200 ta yuser yuborsangiz ham faqat ularni 100 tasini oladi )
+Siz botga yuborgan userlarga reklama yuboradi.
+⚠️ Eslatma:
+Agar 200 ta user yuborsangiz ham, faqat 100 tasi ishlatiladi.
+✍️ Userlar ro‘yxati va reklama matnini kiriting.
 
-Userlar va reklama matnini kiriting.
+📊 **Profil :**
+Sizning statistikangizni ko‘rsatadi.
 
-📊 **Profil**
-Sizning statistikangizni ko'rsatadi.
+🔄 **Nomer Almashtirish :**
+Telefon raqamingizni o‘zgartirish imkoniyati.
 
-🔄 **Nomer almashtirish**
-Telefon raqamingizni o'zgartirish.
-
-Agar Bot Haqida To'liq Ma'lumot olmoqchi bo'lsangiz murojat qiling : \`@ortiqov_x7\`;`;
+📞 Barcha malumotlar Rasmiy kanalda:
+👉 @AvtoBot_News`;
 
 // /help komandasi
 bot.onText(/\/help/, async (msg) => {
@@ -1180,7 +1186,8 @@ bot.on('callback_query', async (query) => {
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: "🚫 Bloklash", callback_data: `admin_block_${user.chatId}` }, { text: "✅ Tasdiqlash", callback_data: `admin_approve_${user.chatId}` }],
-                            [{ text: "📅 1 Oy", callback_data: `admin_sub_month_${user.chatId}` }, { text: "👑 VIP", callback_data: `admin_sub_vip_${user.chatId}` }]
+                            [{ text: "📅 1 Oy", callback_data: `admin_sub_month_${user.chatId}` }, { text: "👑 VIP", callback_data: `admin_sub_vip_${user.chatId}` }],
+                            [{ text: "✍️ Vaqt belgilash", callback_data: `admin_sub_custom_${user.chatId}` }]
                         ]
                     }
                 });
@@ -1234,13 +1241,40 @@ bot.on('callback_query', async (query) => {
     } catch(e) {}
 
     // --- MENYU HANDLERS ---
+    if (data.startsWith('admin_approve_')) {
+        const targetId = parseInt(data.split('_')[2]);
+        const user = await getUser(targetId);
+        if (user) {
+            await bot.sendMessage(chatId, `👤 **Foydalanuvchi:** ${escapeMarkdown(user.name)}\n🆔 ID: \`${targetId}\`\n\nTasdiqlash muddatini tanlang yoki qo'lda yozing (masalan: 1 kun 2 soat):`, {
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "📅 1 Oy", callback_data: `admin_sub_month_${targetId}` }, { text: "👑 VIP", callback_data: `admin_sub_vip_${targetId}` }],
+                        [{ text: "✍️ Vaqt belgilash", callback_data: `admin_sub_custom_${targetId}` }],
+                        [{ text: "🔙 Bekor qilish", callback_data: "admin_users" }]
+                    ]
+                }
+            });
+            await bot.answerCallbackQuery(query.id);
+        }
+        return;
+    }
+
+    if (data.startsWith('admin_sub_custom_')) {
+        const targetId = parseInt(data.split('_')[3]);
+        userStates[chatId] = { step: 'WAITING_ADMIN_CUSTOM_TIME', targetId: targetId };
+        await bot.sendMessage(chatId, "✍️ Muddatni kiriting.\n\nMisollar:\n- `1 kun 2 soat`\n- `5 soat`\n- `30 minut`\n- `7 kun`\n- `1 oy` (30 kun)", { parse_mode: "Markdown" });
+        await bot.answerCallbackQuery(query.id);
+        return;
+    }
+
     if (data === "menu_almaz") {
         if (userStates[chatId]) delete userStates[chatId];
         const user = await getUser(chatId);
         if (user && user.session) {
-             // Statusni tekshirish (default: true)
+             // Statusni bazadan tekshirish
              if (avtoAlmazStates[chatId] === undefined) {
-                 avtoAlmazStates[chatId] = true;
+                 avtoAlmazStates[chatId] = user.avtoAlmaz !== undefined ? user.avtoAlmaz : true;
              }
              const isActive = avtoAlmazStates[chatId];
              const statusText = isActive ? "[ON] Yoqilgan" : "[OFF] O'chirilgan";
@@ -1261,10 +1295,14 @@ bot.on('callback_query', async (query) => {
     }
 
     else if (data === "almaz_toggle") {
+        const user = await getUser(chatId);
         if (avtoAlmazStates[chatId] === undefined) {
-            avtoAlmazStates[chatId] = true;
+            avtoAlmazStates[chatId] = user && user.avtoAlmaz !== undefined ? user.avtoAlmaz : true;
         }
         avtoAlmazStates[chatId] = !avtoAlmazStates[chatId];
+        
+        // Bazaga saqlash
+        await updateUser(chatId, { avtoAlmaz: avtoAlmazStates[chatId] });
         
         const isActive = avtoAlmazStates[chatId];
         const statusText = isActive ? "✅ Yoqilgan" : "❌ O'chirilgan";
@@ -1359,7 +1397,7 @@ bot.on('callback_query', async (query) => {
         message += "📛 **Ism:** " + escapeMarkdown(user.name) + "\n";
         message += "🆔 **ID:** `" + user.chatId + "`\n";
         message += "🔰 **Holat:** " + statusIcon + "\n";
-        message += "🔰 **Tarif:** " + subType + "\n";
+        message += "⏰ **Tarif:** " + subType + "\n";
         message += "⏳ **Tugash vaqti:** " + expireDate + "\n";
         message += "🔌 **Sessiya:** " + sessionStatus + "\n\n";
         
@@ -1432,7 +1470,7 @@ bot.on('callback_query', async (query) => {
         message += "📛 **Ism:** " + escapeMarkdown(user.name) + "\n";
         message += "🆔 **ID:** `" + user.chatId + "`\n";
         message += "🔰 **Holat:** " + statusIcon + "\n";
-        message += "🔰 **Tarif:** " + subType + "\n";
+        message += "⏰ **Tarif:** " + subType + "\n";
         message += "⏳ **Tugash vaqti:** " + expireDate + "\n";
         message += "🔌 **Sessiya:** " + sessionStatus + "\n\n";
         
@@ -1580,6 +1618,11 @@ bot.on('callback_query', async (query) => {
     else if (data === "rek_cancel") {
         delete userStates[chatId];
         bot.sendMessage(chatId, "❌ Reklama bekor qilindi.", getMainMenu());
+    }
+
+    else if (data === "admin_users") {
+        await bot.sendMessage(chatId, "👤 **Foydalanuvchilar menyusi:**", getAdminMenu());
+        await bot.answerCallbackQuery(query.id);
     }
 
     else if (data === "rek_start") {
@@ -1798,6 +1841,40 @@ bot.on('message', async (msg) => {
         // (WAITING_REYD_TYPE endi inline button orqali ishlaydi)
 
 
+                // --- ADMIN CUSTOM TIME HANDLER ---
+        if (state.step === 'WAITING_ADMIN_CUSTOM_TIME') {
+            const targetId = state.targetId;
+            const user = await getUser(targetId);
+            if (!user) {
+                bot.sendMessage(chatId, "❌ Foydalanuvchi topilmadi.");
+                delete userStates[chatId];
+                return;
+            }
+
+            const duration = parseTime(text);
+            if (duration === 0) {
+                bot.sendMessage(chatId, "❌ Noto'g'ri format. Iltimos qaytadan urinib ko'ring (masalan: 1 kun 2 soat).");
+                return;
+            }
+
+            const expireDate = new Date();
+            expireDate.setTime(expireDate.getTime() + duration);
+            
+            await updateUser(targetId, { 
+                status: 'approved', 
+                expireAt: expireDate, 
+                subscriptionType: 'monthly' 
+            });
+
+            const timeStr = formatDuration(duration);
+            await sendSafeMessage(targetId, `🎉 Siz admin tomonidan tasdiqlandingiz!\n\n🔰 **Tarif:** ${timeStr}\nEndi **/start** ni bosib ro'yxatdan o'tishingiz mumkin.`, { parse_mode: "Markdown" });
+            
+            bot.sendMessage(chatId, `✅ ${user.name} tasdiqlandi!\nMuddat: ${timeStr} (${expireDate.toLocaleString()})`);
+            delete userStates[chatId];
+            await bot.sendMessage(chatId, "👇 Bosh menyu:", getAdminMenu());
+            return;
+        }
+
         if (state.step === 'WAITING_REYD_TARGET') {
             // Agar foydalanuvchi link yuborsa, u tugma bosish deb o'ylanmasligi kerak
             state.target = text;
@@ -1948,7 +2025,7 @@ bot.on('message', async (msg) => {
                 // Bazaga sessiyani saqlash
                 await updateUser(chatId, { session: session });
                 
-                bot.sendMessage(chatId, "✅ **Muvaffaqiyatli kirdingiz!** Userbot ishga tushdi 🚀.", { parse_mode: "Markdown" });
+                bot.sendMessage(chatId, "✅ **Muvaffaqiyatli kirdingiz!** Avtobot ishga tushdi 🚀.", { parse_mode: "Markdown" });
                 
                 state.step = 'LOGGED_IN';
                 userStates[chatId] = state;
@@ -2160,7 +2237,7 @@ async function startAvtoUser(chatId, client, link, limit) {
         if (!entity) {
             // Agar entity null bo'lsa (masalan already participant bo'lib, entity resolve bo'lmasa)
             // Biz getDialogs orqali qidirib ko'rishimiz mumkin, lekin bu og'ir operatsiya.
-            bot.sendMessage(chatId, "❌ Guruh ma'lumotlarini aniqlab bo'lmadi. Iltimos, linkni tekshiring.\n\nEhtimoliy sabablar:\n1. Siz guruhda borsiz, lekin bot uni topa olmadi.\n2. Link muddati tugagan.\n3. Guruh nomi o'zgargan.");
+            bot.sendMessage(chatId, "❌ Guruh topilmadi yoki link eskirgan.\nIltimos, guruhda borligingizni tekshiring tekshiring.");
             return;
         }
 
@@ -2191,7 +2268,7 @@ async function startAvtoUser(chatId, client, link, limit) {
         const sendBatchUsers = async (type, usersList) => {
             if (usersList.length === 0) return;
             
-            const header = type === 'admin' ? "<b>👑 ADMINLAR (Part):</b>" : "<b>👥 AZOLAR (Part):</b>";
+            const header = type === 'admin' ? "👑 **Adminlar (Part):**" : "👥 **Azolar (Part):**";
             let message = header + "\n";
             
             // Userlarni stringga aylantiramiz
@@ -2694,9 +2771,10 @@ async function startReklama(chatId, client, users, content, contentType, entitie
 async function startUserbot(client, chatId) {
     console.log("Userbot " + chatId + " uchun ishga tushdi.");
     
-    // Default holat: Yoqilgan
+    // Default holat: Bazadan olish
     if (avtoAlmazStates[chatId] === undefined) {
-        avtoAlmazStates[chatId] = true;
+        const user = await getUser(chatId);
+        avtoAlmazStates[chatId] = user && user.avtoAlmaz !== undefined ? user.avtoAlmaz : true;
     }
 
     client.addEventHandler(async (event) => {
@@ -2782,6 +2860,102 @@ async function startUserbot(client, chatId) {
     }, new NewMessage({}));
 }
 
+function parseTime(input) {
+    const timeUnits = {
+        'kun': 24 * 60 * 60 * 1000,
+        'soat': 60 * 60 * 1000,
+        'minut': 60 * 1000,
+        'daqiqa': 60 * 1000,
+        'oy': 30 * 24 * 60 * 60 * 1000,
+        'hafta': 7 * 24 * 60 * 60 * 1000,
+        'd': 24 * 60 * 60 * 1000,
+        'h': 60 * 60 * 1000,
+        'm': 60 * 1000
+    };
+
+    let totalMs = 0;
+    const regex = /(\d+)\s*(kun|soat|minut|daqiqa|oy|hafta|d|h|m)/gi;
+    let match;
+    let found = false;
+
+    while ((match = regex.exec(input)) !== null) {
+        const value = parseInt(match[1]);
+        const unit = match[2].toLowerCase();
+        if (timeUnits[unit]) {
+            totalMs += value * timeUnits[unit];
+            found = true;
+        }
+    }
+
+    return found ? totalMs : 0;
+}
+
+function formatDuration(ms) {
+    if (ms <= 0) return "0 minut";
+    
+    const units = [
+        { label: 'oy', val: 30 * 24 * 60 * 60 * 1000 },
+        { label: 'kun', val: 24 * 60 * 60 * 1000 },
+        { label: 'soat', val: 60 * 60 * 1000 },
+        { label: 'minut', val: 60 * 1000 }
+    ];
+
+    let remaining = ms;
+    const parts = [];
+
+    for (const unit of units) {
+        const count = Math.floor(remaining / unit.val);
+        if (count > 0) {
+            parts.push(`${count} ${unit.label}`);
+            remaining %= unit.val;
+        }
+    }
+
+    return parts.join(' ') || "0 minut";
+}
+
+async function checkExpirations() {
+    try {
+        const now = new Date();
+        const expiredUsers = await User.find({
+            status: 'approved',
+            expireAt: { $ne: null, $lt: now }
+        });
+
+        for (const user of expiredUsers) {
+            console.log(`[Expiry] User ${user.chatId} muddati tugadi.`);
+            
+            // Holatni o'zgartirish
+            await updateUser(user.chatId, { status: 'blocked', session: null });
+            
+            // Sessiyani to'xtatish
+            if (userClients[user.chatId]) {
+                try {
+                    await userClients[user.chatId].disconnect();
+                    await userClients[user.chatId].destroy();
+                    delete userClients[user.chatId];
+                } catch (e) { console.error(`Error disconnecting ${user.chatId}:`, e); }
+            }
+
+            // Foydalanuvchiga xabar berish
+            const blockMsg = "⚠️ Sizning foydalanish muddatingiz tugadi.\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring.\n\n👨‍💼 Admin: @ortiqov_x7";
+            await sendSafeMessage(user.chatId, blockMsg, { 
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
+                    ]
+                }
+            });
+        }
+    } catch (e) {
+        console.error("checkExpirations error:", e);
+    }
+}
+
+// Har 10 minutda tekshirish
+setInterval(checkExpirations, 10 * 60 * 1000);
+
 // Bot qayta ishga tushganda sessiyalarni tiklash
 async function restoreUserSession(chatId, sessionString) {
     try {
@@ -2804,6 +2978,9 @@ async function restoreUserSession(chatId, sessionString) {
 (async () => {
     const users = await getUsers();
     for (const user of users) {
+        // Avto almaz holatini in-memory cache'ga yuklash
+        avtoAlmazStates[user.chatId] = user.avtoAlmaz !== undefined ? user.avtoAlmaz : true;
+
         if (user.status === 'approved' && user.session) {
             await restoreUserSession(user.chatId, user.session);
         }
