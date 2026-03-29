@@ -78,7 +78,8 @@ const userSchema = new mongoose.Schema({
     reydCount: { type: Number, default: 0 },
     usersGathered: { type: Number, default: 0 },
     adsCount: { type: Number, default: 0 },
-    avtoAlmaz: { type: Boolean, default: true }
+    avtoAlmaz: { type: Boolean, default: true },
+    expiryWarningSent: { type: Boolean, default: false }
 });
 
 const User = mongoose.model('User', userSchema);
@@ -1168,7 +1169,7 @@ bot.on('callback_query', async (query) => {
                 return;
             }
 
-            let updateData = { status: 'approved' };
+            let updateData = { status: 'approved', expiryWarningSent: false };
             let subText = "";
 
             if (type === 'month') {
@@ -1214,7 +1215,15 @@ bot.on('callback_query', async (query) => {
 
                 let expireDate = "Cheksiz";
                 if (user.expireAt) {
-                    expireDate = new Date(user.expireAt).toLocaleDateString();
+                    const now = new Date();
+                    const diff = user.expireAt.getTime() - now.getTime();
+                    if (diff > 0) {
+                        const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+                        const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                        expireDate = `${days} kun ${hours} soat`;
+                    } else {
+                        expireDate = "Tugagan";
+                    }
                 }
 
                 let message = `👤 **Foydalanuvchi Ma'lumotlari:**\n\n`;
@@ -1223,7 +1232,7 @@ bot.on('callback_query', async (query) => {
                 message += `🆔 ID: \`${user.chatId}\`\n`;
                 message += `📊 Status: ${user.status} ${statusIcon}\n`;
                 message += `🔰 Tarif: ${subType}\n`;
-                message += `⏳ Tugash: ${expireDate}\n`;
+                message += `⏳ Qolgan vaqt: ${expireDate}\n`;
                 message += `💎 Almazlar: ${user.clicks || 0}\n`;
                 message += `📅 Qo'shildi: ${new Date(user.joinedAt).toLocaleString()}\n`;
                 message += `⚔️ Reydlar: ${user.reydCount || 0}\n`;
@@ -1438,7 +1447,15 @@ bot.on('callback_query', async (query) => {
 
         let expireDate = "Cheksiz";
         if (user.expireAt) {
-            expireDate = new Date(user.expireAt).toLocaleDateString();
+            const now = new Date();
+            const diff = user.expireAt.getTime() - now.getTime();
+            if (diff > 0) {
+                const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+                const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                expireDate = `${days} kun ${hours} soat`;
+            } else {
+                expireDate = "Tugagan";
+            }
         } else if (user.subscriptionType === 'monthly' && !user.expireAt) {
             expireDate = "Noma'lum"; // Eskilar uchun
         }
@@ -1448,7 +1465,7 @@ bot.on('callback_query', async (query) => {
         message += "🆔 **ID:** `" + user.chatId + "`\n";
         message += "🔰 **Holat:** " + statusIcon + "\n";
         message += "⏰ **Tarif:** " + subType + "\n";
-        message += "⏳ **Tugash vaqti:** " + expireDate + "\n";
+        message += "⏳ **Qolgan vaqt:** " + expireDate + "\n";
         message += "🔌 **Sessiya:** " + sessionStatus + "\n\n";
         
         message += "⚔️ **Reydlar soni:** " + (user.reydCount || 0) + " ta\n";
@@ -1511,7 +1528,15 @@ bot.on('callback_query', async (query) => {
 
         let expireDate = "Cheksiz";
         if (user.expireAt) {
-            expireDate = new Date(user.expireAt).toLocaleDateString();
+            const now = new Date();
+            const diff = user.expireAt.getTime() - now.getTime();
+            if (diff > 0) {
+                const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+                const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+                expireDate = `${days} kun ${hours} soat`;
+            } else {
+                expireDate = "Tugagan";
+            }
         } else if (user.subscriptionType === 'monthly' && !user.expireAt) {
             expireDate = "Noma'lum"; // Eskilar uchun
         }
@@ -1521,7 +1546,7 @@ bot.on('callback_query', async (query) => {
         message += "🆔 **ID:** `" + user.chatId + "`\n";
         message += "🔰 **Holat:** " + statusIcon + "\n";
         message += "⏰ **Tarif:** " + subType + "\n";
-        message += "⏳ **Tugash vaqti:** " + expireDate + "\n";
+        message += "⏳ **Qolgan vaqt:** " + expireDate + "\n";
         message += "🔌 **Sessiya:** " + sessionStatus + "\n\n";
         
         message += "⚔️ **Reydlar soni:** " + (user.reydCount || 0) + " ta\n";
@@ -2987,6 +3012,8 @@ function formatDuration(ms) {
 async function checkExpirations() {
     try {
         const now = new Date();
+        
+        // 1. Muddati tugaganlarni bloklash
         const expiredUsers = await User.find({
             status: 'approved',
             expireAt: { $ne: null, $lt: now }
@@ -2994,11 +3021,7 @@ async function checkExpirations() {
 
         for (const user of expiredUsers) {
             console.log(`[Expiry] User ${user.chatId} muddati tugadi.`);
-            
-            // Holatni o'zgartirish
-            await updateUser(user.chatId, { status: 'blocked', session: null });
-            
-            // Sessiyani to'xtatish
+            await updateUser(user.chatId, { status: 'blocked', session: null, expiryWarningSent: false });
             if (userClients[user.chatId]) {
                 try {
                     await userClients[user.chatId].disconnect();
@@ -3006,17 +3029,39 @@ async function checkExpirations() {
                     delete userClients[user.chatId];
                 } catch (e) { console.error(`Error disconnecting ${user.chatId}:`, e); }
             }
-
-            // Foydalanuvchiga xabar berish
             const blockMsg = "⚠️ Sizning foydalanish muddatingiz tugadi.\nBotdan foydalanishni davom ettirish uchun to'lovni amalga oshiring va botni qayta ishga tushiring.\n\n👨‍💼 Admin: @ortiqov_x7";
             await sendSafeMessage(user.chatId, blockMsg, { 
                 parse_mode: "Markdown",
                 reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]
-                    ]
+                    inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
                 }
             });
+        }
+
+        // 2. 1 kun muddat qolganlarni ogohlantirish
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        const warningThreshold = new Date(now.getTime() + oneDayMs);
+        
+        const warningUsers = await User.find({
+            status: 'approved',
+            expireAt: { $ne: null, $gt: now, $lt: warningThreshold },
+            expiryWarningSent: { $ne: true }
+        });
+
+        for (const user of warningUsers) {
+            console.log(`[Warning] User ${user.chatId} muddati tugashiga 1 kundan kam qoldi.`);
+            const diff = user.expireAt.getTime() - now.getTime();
+            const hours = Math.floor(diff / (60 * 60 * 1000));
+            const minutes = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
+
+            const warningMsg = `⏰ **Diqqat!**\n\nSizning botdan foydalanish muddatingiz tugashiga **${hours} soat ${minutes} minut** qoldi.\n\nFoydalanishni davom ettirish uchun o'z vaqtida to'lov qiling.\n\n👨‍💼 Admin: @ortiqov_x7`;
+            await sendSafeMessage(user.chatId, warningMsg, { 
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [[{ text: "👨‍💼 Admin bilan bog'lanish", url: "https://t.me/ortiqov_x7" }]]
+                }
+            });
+            await updateUser(user.chatId, { expiryWarningSent: true });
         }
     } catch (e) {
         console.error("checkExpirations error:", e);
