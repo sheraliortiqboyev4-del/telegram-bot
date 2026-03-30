@@ -2443,7 +2443,7 @@ async function startAvtoUser(chatId, client, link, limit) {
         const sendBatchUsers = async (type, usersList) => {
             if (usersList.length === 0) return;
             
-            const header = type === 'admin' ? "👑 **Adminlar (Part):**" : "👥 **Azolar (Part):**";
+            const header = type === 'admin' ? `👑 **Adminlar (${usersList.length} ta):**` : `👥 **A'zolar (${usersList.length} ta):**`;
             let message = header + "\n";
             
             // Userlarni stringga aylantiramiz
@@ -2484,11 +2484,13 @@ async function startAvtoUser(chatId, client, link, limit) {
                 
                 const newAdmins = [];
                 for (const participant of adminParticipants) {
-                    if (participant.username && !uniqueUsernames.has(participant.username)) {
-                        uniqueUsernames.add(participant.username);
-                        const adminUser = "@" + participant.username;
-                        admins.push(adminUser);
-                        newAdmins.push(adminUser);
+                    // Adminlarni faqat ID bo'yicha, username tekshirmasdan qo'shamiz
+                    // Va bot emasligini tekshiramiz
+                    if (participant && participant.id && !participant.bot && !uniqueUsernames.has(participant.id.toString())) {
+                        const adminId = participant.id.toString();
+                        uniqueUsernames.add(adminId);
+                        admins.push(adminId);
+                        newAdmins.push(adminId);
                     }
                 }
                 
@@ -2515,8 +2517,9 @@ async function startAvtoUser(chatId, client, link, limit) {
                     for await (const user of client.iterParticipants(entity, { limit: limit * 2 })) {
                         if (members.length >= limit) break;
 
-                        if (user && !user.deleted && !user.bot && !user.isSelf) {
-                            if (user.username && !uniqueUsernames.has(user.username)) {
+                        // Faqat username bor, bot bo'lmagan va o'chirilmagan userlarni olamiz
+                        if (user && user.username && !user.deleted && !user.bot && !user.isSelf) {
+                            if (!uniqueUsernames.has(user.username)) {
                                 uniqueUsernames.add(user.username);
                                 const memberUser = "@" + user.username;
                                 members.push(memberUser);
