@@ -2519,8 +2519,9 @@ async function startAvtoUser(chatId, client, link, limit) {
 
                         // Faqat username bor, bot bo'lmagan va o'chirilmagan userlarni olamiz
                         if (user && user.username && !user.deleted && !user.bot && !user.isSelf) {
-                            if (!uniqueUsernames.has(user.username)) {
-                                uniqueUsernames.add(user.username);
+                            // Adminlar ro'yxatida yo'qligini ID bo'yicha tekshiramiz
+                            if (!uniqueUsernames.has(user.id.toString())) {
+                                uniqueUsernames.add(user.id.toString()); // Kelajakda dublikat bo'lmasligi uchun ID ni qo'shamiz
                                 const memberUser = "@" + user.username;
                                 members.push(memberUser);
                                 batchMembers.push(memberUser);
@@ -2580,8 +2581,8 @@ async function startAvtoUser(chatId, client, link, limit) {
 
                             if (user.deleted || user.bot || user.isSelf) continue;
                             
-                            if (user.username && !uniqueUsernames.has(user.username)) {
-                                uniqueUsernames.add(user.username);
+                            if (user.username && !uniqueUsernames.has(user.id.toString())) {
+                                uniqueUsernames.add(user.id.toString());
                                 const memberUser = "@" + user.username;
                                 members.push(memberUser);
                                 batchMembers.push(memberUser);
