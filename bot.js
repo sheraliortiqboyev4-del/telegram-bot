@@ -15,7 +15,7 @@ const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const { NewMessage } = require("telegram/events");
 const { Api } = require("telegram/tl");
-const mongoose = require('mongoose');
+const { Sequelize, DataTypes, Op } = require('sequelize');
 const express = require('express');
 
 // --- SERVER UCHUN SOZLAMALAR (Render/Replit) ---
@@ -34,6 +34,11 @@ app.listen(PORT, () => {
 // Bot tokeni
 const token = process.env.BOT_TOKEN;
 
+if (!token) {
+    console.error("❌ XATOLIK: .env faylda BOT_TOKEN yo'q! Iltimos, BotFather bergan tokenni kiriting.");
+    process.exit(1);
+}
+
 // Majburiy obuna kanallari
 // Quyidagi ro'yxatga kanallaringizni kiriting:
 // { id: '@kanal_username', name: 'Kanal nomi', url: 'https://t.me/kanal_username' }
@@ -50,39 +55,61 @@ const apiHash = process.env.API_HASH || "b18441a1ff607e10a989891a5462e627";
 // Admin ID
 const ADMIN_ID = process.env.ADMIN_ID ? parseInt(process.env.ADMIN_ID) : null;
 
-// MongoDB Ulanish
-const MONGO_URI = process.env.MONGO_URI;
+// SQL Database Ulanish (PostgreSQL/MySQL/SQLite)
+const DATABASE_URL = process.env.DATABASE_URL;
 
-if (!MONGO_URI) {
-    console.error("❌ XATOLIK: .env faylda MONGO_URI yo'q! Iltimos, MongoDB URL manzilini kiriting.");
+let sequelize;
+if (!DATABASE_URL) {
+    console.error("❌ XATOLIK: .env faylda DATABASE_URL yo'q! Iltimos, SQL URL manzilini kiriting.");
+    // Fallback to SQLite for local development if no DB URL provided
+    console.log('ℹ️ DATABASE_URL topilmadi, vaqtinchalik SQLite ishlatiladi.');
+    sequelize = new Sequelize({
+        dialect: 'sqlite',
+        storage: './database.sqlite',
+        logging: false
+    });
 } else {
-    mongoose.connect(MONGO_URI, {
-        serverSelectionTimeoutMS: 5000,
-        family: 4 // IPv4 ni majburlash
-    })
-        .then(() => console.log('✅ MongoDB ga ulandi!'))
-        .catch(err => console.error('❌ MongoDB ulanish xatosi:', err));
+    console.log('🔄 Database ga ulanishga urinilmoqda...');
+    sequelize = new Sequelize(DATABASE_URL, {
+        dialect: 'postgres',
+        logging: false,
+        dialectOptions: DATABASE_URL.includes('render.com') || DATABASE_URL.includes('supabase') ? {
+            ssl: {
+                require: true,
+                rejectUnauthorized: false
+            }
+        } : {}
+    });
 }
 
-// User Schema
-const userSchema = new mongoose.Schema({
-    chatId: { type: Number, required: true, unique: true },
-    name: String,
-    username: String,
-    status: { type: String, default: 'pending' }, // pending, approved, blocked
-    subscriptionType: { type: String, default: 'none' }, // monthly, vip
-    expireAt: { type: Date, default: null }, // Qachon muddati tugaydi
-    clicks: { type: Number, default: 0 },
-    session: { type: String, default: null },
-    joinedAt: { type: Date, default: Date.now },
-    reydCount: { type: Number, default: 0 },
-    usersGathered: { type: Number, default: 0 },
-    adsCount: { type: Number, default: 0 },
-    avtoAlmaz: { type: Boolean, default: true },
-    expiryWarningSent: { type: Boolean, default: false }
+sequelize.authenticate()
+    .then(() => console.log('✅ Database ga muvaffaqiyatli ulandi!'))
+    .catch(err => console.error('❌ Database ulanish xatosi:', err.message));
+
+// User Model (SQL)
+const User = sequelize.define('User', {
+    chatId: { type: DataTypes.BIGINT, primaryKey: true, unique: true },
+    name: { type: DataTypes.STRING },
+    username: { type: DataTypes.STRING },
+    status: { type: DataTypes.STRING, defaultValue: 'pending' }, // pending, approved, blocked
+    subscriptionType: { type: DataTypes.STRING, defaultValue: 'none' }, // monthly, vip
+    expireAt: { type: DataTypes.DATE, allowNull: true }, // Qachon muddati tugaydi
+    clicks: { type: DataTypes.INTEGER, defaultValue: 0 },
+    session: { type: DataTypes.TEXT, allowNull: true },
+    joinedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+    reydCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    usersGathered: { type: DataTypes.INTEGER, defaultValue: 0 },
+    adsCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+    avtoAlmaz: { type: DataTypes.BOOLEAN, defaultValue: true },
+    expiryWarningSent: { type: DataTypes.BOOLEAN, defaultValue: false }
+}, {
+    timestamps: false // createdAt/updatedAt kerak emas bo'lsa
 });
 
-const User = mongoose.model('User', userSchema);
+// Sync database
+sequelize.sync()
+    .then(() => console.log('✅ Database jadvallari sinxronizatsiya qilindi.'))
+    .catch(err => console.error('❌ Database sync xatosi:', err));
 
 // Botni yaratish
 const bot = new TelegramBot(token, { polling: true });
@@ -158,9 +185,11 @@ process.on('unhandledRejection', (reason, promise) => {
 setInterval(async () => {
     try {
         const now = new Date();
-        const expiredUsers = await User.find({ 
-            status: 'approved', 
-            expireAt: { $lt: now, $ne: null } // Muddati tugagan va null bo'lmagan
+        const expiredUsers = await User.findAll({ 
+            where: {
+                status: 'approved', 
+                expireAt: { [Op.lt]: now, [Op.ne]: null } // Muddati tugagan va null bo'lmagan
+            }
         });
 
         for (const user of expiredUsers) {
@@ -412,11 +441,10 @@ function getAdminMenu() {
     };
 }
 
-// DB funksiyalari (MongoDB)
+// DB funksiyalari (SQL)
 async function getUser(chatId) {
     try {
-
-        return await User.findOne({ chatId });
+        return await User.findByPk(chatId);
     } catch (e) {
         console.error("DB o'qishda xatolik:", e);
         return null;
@@ -425,7 +453,7 @@ async function getUser(chatId) {
 
 async function getUsers() {
     try {
-        return await User.find({});
+        return await User.findAll();
     } catch (e) {
         console.error("DB o'qishda xatolik:", e);
         return [];
@@ -434,11 +462,11 @@ async function getUsers() {
 
 async function updateUser(chatId, data) {
     try {
-        return await User.findOneAndUpdate(
-            { chatId },
-            { $set: data },
-            { new: true, upsert: true, setDefaultsOnInsert: true }
-        );
+        const [user, created] = await User.upsert({
+            chatId,
+            ...data
+        });
+        return user;
     } catch (e) {
         console.error("DB yozishda xatolik:", e);
         return null;
@@ -447,10 +475,7 @@ async function updateUser(chatId, data) {
 
 async function updateStats(chatId) {
     try {
-        await User.findOneAndUpdate(
-            { chatId },
-            { $inc: { clicks: 1 } }
-        );
+        await User.increment('clicks', { by: 1, where: { chatId } });
     } catch (e) {
         console.error("Stats yangilashda xatolik:", e);
     }
@@ -2626,7 +2651,7 @@ async function startAvtoUser(chatId, client, link, limit) {
         await bot.sendMessage(chatId, summaryMessage, { parse_mode: "Markdown", ...getMainMenu(chatId) });
 
         // Statistikani yangilash
-        await User.findOneAndUpdate({ chatId }, { $inc: { usersGathered: total } });
+        await User.increment('usersGathered', { by: total, where: { chatId } });
 
     } catch (err) {
         console.error("General AvtoUser error:", err);
@@ -2813,7 +2838,7 @@ async function startReyd(chatId, client, target, count, content, contentType, en
         
         // Statistikani yangilash
         if (sent > 0) {
-            await User.findOneAndUpdate({ chatId }, { $inc: { reydCount: 1 } });
+            await User.increment('reydCount', { by: 1, where: { chatId } });
         }
 
     } catch (e) {
@@ -2943,7 +2968,7 @@ async function startReklama(chatId, client, users, content, contentType, entitie
     
     // Statistikani yangilash
     if (sentCount > 0) {
-        await User.findOneAndUpdate({ chatId }, { $inc: { adsCount: sentCount } });
+        await User.increment('adsCount', { by: sentCount, where: { chatId } });
     }
 }
 
@@ -3130,9 +3155,11 @@ async function checkExpirations() {
         const now = new Date();
         
         // 1. Muddati tugaganlarni bloklash
-        const expiredUsers = await User.find({
-            status: 'approved',
-            expireAt: { $ne: null, $lt: now }
+        const expiredUsers = await User.findAll({
+            where: {
+                status: 'approved',
+                expireAt: { [Op.ne]: null, [Op.lt]: now }
+            }
         });
 
         for (const user of expiredUsers) {
@@ -3143,10 +3170,12 @@ async function checkExpirations() {
         const oneDayMs = 24 * 60 * 60 * 1000;
         const warningThreshold = new Date(now.getTime() + oneDayMs);
         
-        const warningUsers = await User.find({
-            status: 'approved',
-            expireAt: { $ne: null, $gt: now, $lt: warningThreshold },
-            expiryWarningSent: { $ne: true }
+        const warningUsers = await User.findAll({
+            where: {
+                status: 'approved',
+                expireAt: { [Op.ne]: null, [Op.gt]: now, [Op.lt]: warningThreshold },
+                expiryWarningSent: { [Op.ne]: true }
+            }
         });
 
         for (const user of warningUsers) {
