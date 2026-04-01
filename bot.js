@@ -17,18 +17,34 @@ const { NewMessage } = require("telegram/events");
 const { Api } = require("telegram/tl");
 const { Sequelize, DataTypes, Op } = require('sequelize');
 const express = require('express');
+const https = require('https');
 
 // --- SERVER UCHUN SOZLAMALAR (Render/Replit) ---
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SERVER_URL = process.env.SERVER_URL; // Render URL: https://service-name.onrender.com
 
 app.get('/', (req, res) => {
-    res.send('Bot is running!');
+    res.send('Bot is running and awake!');
 });
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
     console.log('🚀 Bot v2.0 (SQL Edition) is starting...');
+    
+    // Keep-alive mechanism (Render free tier uyquga ketmasligi uchun)
+    if (SERVER_URL) {
+        console.log(`📡 Keep-alive yoqildi: ${SERVER_URL}`);
+        setInterval(() => {
+            https.get(SERVER_URL, (res) => {
+                console.log(`✅ Self-ping muvaffaqiyatli: ${res.statusCode}`);
+            }).on('error', (err) => {
+                console.error(`❌ Self-ping xatosi: ${err.message}`);
+            });
+        }, 10 * 60 * 1000); // Har 10 daqiqada o'ziga ping yuboradi
+    } else {
+        console.log("⚠️ SERVER_URL topilmadi, keep-alive ishlamaydi.");
+    }
 });
 // ------------------------------------------------
 
@@ -174,13 +190,27 @@ bot.on('polling_error', (error) => {
     console.error(`[Polling Error] ${error.code}: ${error.message}`);
 });
 
+bot.on('error', (error) => {
+    console.error(`[Bot Error] ${error.message}`);
+});
+
 process.on('uncaughtException', (error) => {
-    console.error('[Uncaught Exception]', error);
+    console.error('[Uncaught Exception] Bot o\'chishdan qutqarildi:', error);
+    // Bu yerda muhim resurslarni qayta tekshirish mumkin
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('[Unhandled Rejection]', reason);
+    console.error('[Unhandled Rejection] Kutilmagan xato:', reason);
 });
+
+// Avto-restart logikasi (agar xatolik juda jiddiy bo'lsa)
+const restartBot = () => {
+    console.log("🔄 Bot qayta ishga tushirilmoqda...");
+    // Render odatda process.exit(1) bo'lganda avtomatik restart qiladi
+    setTimeout(() => {
+        process.exit(1);
+    }, 5000);
+};
 
 // Expiration Check Job (Har 10 daqiqada tekshiradi)
 setInterval(async () => {
