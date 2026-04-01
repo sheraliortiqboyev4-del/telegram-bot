@@ -28,6 +28,7 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    console.log('🚀 Bot v2.0 (SQL Edition) is starting...');
 });
 // ------------------------------------------------
 
